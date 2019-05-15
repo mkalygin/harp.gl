@@ -37,28 +37,7 @@ const commonConfig = {
         fs: "undefined"
     },
     resolve: {
-        extensions: [".webpack.js", ".web.ts", ".ts", ".tsx", ".web.js", ".js"],
-        alias: {
-            "react-native": "react-native-web"
-        }
-    },
-    module: {
-        rules: [
-            {
-                test: /\.tsx?$/,
-                loader: "ts-loader",
-                exclude: /node_modules/,
-                options: {
-                    configFile: path.join(process.cwd(), "tsconfig.json"),
-                    onlyCompileBundledFiles: true,
-                    transpileOnly: prepareOnly,
-                    compilerOptions: {
-                        sourceMap: !prepareOnly,
-                        declaration: false
-                    }
-                }
-            }
-        ]
+        extensions: [".webpack.js", ".web.js", ".js"]
     },
     output: {
         path: path.join(process.cwd(), "dist/examples"),
@@ -75,20 +54,24 @@ const commonConfig = {
         entrypoints: true,
         warnings: true
     },
-    mode: process.env.NODE_ENV || "development"
+    mode: process.env.NODE_ENV || "development",
+    watchOptions: {
+        aggregateTimeout: 300,
+        poll: 1000
+    }
 };
 
 const decoderConfig = merge(commonConfig, {
     target: "webworker",
     entry: {
-        decoder: "./decoder/decoder.ts"
+        decoder: "./decoder/decoder.js"
     }
 });
 
 const webpackEntries = glob
-    .sync(path.join(__dirname, "./src/*.{ts,tsx}"))
+    .sync(path.join(__dirname, "./src/*.{js,jsx}"))
     .reduce((result, entry) => {
-        const name = path.basename(entry).replace(/.tsx?$/, "");
+        const name = path.basename(entry).replace(/.jsx?$/, "");
         if (name.startsWith("common")) {
             return result;
         }
@@ -133,13 +116,13 @@ const browserConfig = merge(commonConfig, {
 
 const exampleBrowserConfig = merge(commonConfig, {
     entry: {
-        "example-browser": "./example-browser.ts"
+        "example-browser": "./example-browser.js"
     }
 });
 
 const codeBrowserConfig = merge(commonConfig, {
     entry: {
-        codebrowser: "./codebrowser.ts"
+        codebrowser: "./codebrowser.js"
     }
 });
 

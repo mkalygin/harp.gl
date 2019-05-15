@@ -19,25 +19,11 @@ const harpFontResourcesPath = path.dirname(
 const browserTestsConfig = {
     devtool: "source-map",
     resolve: {
-        extensions: [".webpack.js", ".web.ts", ".ts", ".tsx", ".web.js", ".js"],
+        extensions: [".web.js", ".js"],
         modules: [".", "node_modules"]
     },
-    module: {
-        rules: [
-            {
-                test: /\.tsx?$/,
-                loader: "ts-loader",
-                exclude: /node_modules/,
-                options: {
-                    onlyCompileBundledFiles: true,
-                    // use the main tsconfig.json for all compilation
-                    configFile: path.resolve(__dirname, "tsconfig.json")
-                }
-            }
-        ]
-    },
     entry: {
-        test: glob.sync("@here/*/test/**/*.ts")
+        test: glob.sync("@here/*/test/**/*.js").filter(path => !path.includes("generator-harp.gl"))
     },
     output: {
         path: path.join(__dirname, "dist/test"),
@@ -77,6 +63,10 @@ const browserTestsConfig = {
         errors: true,
         entrypoints: true,
         warnings: true
+    },
+    watchOptions: {
+        aggregateTimeout: 300,
+        poll: 1000
     },
     mode: process.env.NODE_ENV || "development"
 };

@@ -11,30 +11,10 @@ const bundleSuffix = isProduction ? ".min" : "";
 const commonConfig = {
     devtool: "source-map",
     resolve: {
-        extensions: [".webpack.js", ".web.ts", ".ts", ".tsx", ".web.js", ".js"]
+        extensions: [".webpack.js", ".web.js", ".js"]
     },
     output: {
         path: path.join(process.cwd(), "dist")
-    },
-    module: {
-        rules: [
-            {
-                test: /\.tsx?$/,
-                loader: "ts-loader",
-                exclude: /node_modules/,
-                options: {
-                    onlyCompileBundledFiles: true,
-                    // use the main tsconfig.json for all compilation
-                    // configFile: path.join(process.cwd(), "tsconfig.json"),
-                    configFile: fs.existsSync("../../tsconfig.json")
-                        ? path.resolve(__dirname, "../../tsconfig.json")
-                        : path.resolve(__dirname, "./tsconfig.json"),
-                    compilerOptions: {
-                        declaration: false
-                    }
-                }
-            }
-        ]
     },
     plugins: [
         new webpack.EnvironmentPlugin({
@@ -50,7 +30,7 @@ const commonConfig = {
 };
 
 const mapComponentConfig = merge(commonConfig, {
-    entry: path.resolve(__dirname, "./lib/index.ts"),
+    entry: path.resolve(__dirname, "./lib/index.js"),
     output: {
         filename: `harp${bundleSuffix}.js`,
         library: "harp"
@@ -61,7 +41,7 @@ const mapComponentConfig = merge(commonConfig, {
 });
 
 const mapComponentDecoderConfig = merge(commonConfig, {
-    entry: path.resolve(__dirname, "./lib/DecoderBootstrap.ts"),
+    entry: path.resolve(__dirname, "./lib/DecoderBootstrap.js"),
     output: {
         filename: `harp-decoders${bundleSuffix}.js`
     },

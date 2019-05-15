@@ -5,7 +5,6 @@
  */
 
 import { applyMixinsWithoutProperties, chainCallbacks } from "@here/harp-utils";
-import { AnimatedExtrusionTileHandler } from "../../harp-mapview/lib/AnimatedExtrusionHandler";
 import { insertShaderInclude } from "./Utils";
 
 import * as THREE from "three";
@@ -415,6 +414,15 @@ export class FadingFeatureMixin implements FadingFeature {
 
 export namespace ExtrusionFeature {
     /**
+     * Minimum ratio value for extrusion effect
+     */
+    export const DEFAULT_RATIO_MIN: number = 0.001;
+    /**
+     * Maximum ratio value for extrusion effect
+     */
+    export const DEFAULT_RATIO_MAX: number = 1;
+
+    /**
      * Patch the THREE.ShaderChunk on first call with some extra shader chunks.
      */
     export function patchGlobalShaderChunks() {
@@ -437,7 +445,7 @@ export namespace ExtrusionFeature {
 
         if (
             extrusionMaterial.extrusionRatio !== undefined &&
-            extrusionMaterial.extrusionRatio >= AnimatedExtrusionTileHandler.DEFAULT_RATIO_MIN
+            extrusionMaterial.extrusionRatio >= DEFAULT_RATIO_MAX
         ) {
             // Add this define to differentiate it internally from other MeshBasicMaterial
             extrusionMaterial.defines.EXTRUSION_MATERIAL = "";
@@ -519,7 +527,7 @@ export namespace ExtrusionFeature {
             properties.shader.uniforms.extrusionRatio !== undefined
         ) {
             properties.shader.uniforms.extrusionRatio.value =
-                extrusionMaterial.extrusionRatio || AnimatedExtrusionTileHandler.DEFAULT_RATIO_MAX;
+                extrusionMaterial.extrusionRatio || ExtrusionFeature.DEFAULT_RATIO_MAX;
             extrusionMaterial.uniformsNeedUpdate = true;
         }
     }
@@ -532,10 +540,11 @@ export namespace ExtrusionFeature {
  *
  * @see [[Tile#addRenderHelper]]
  */
-export class ExtrusionFeatureMixin implements ExtrusionFeature {
+
+class ExtrusionFeatureMixin implements ExtrusionFeature {
     needsUpdate?: boolean;
     uniformsNeedUpdate?: boolean;
-    private m_extrusion: number = AnimatedExtrusionTileHandler.DEFAULT_RATIO_MAX;
+    private m_extrusion: number = ExtrusionFeature.DEFAULT_RATIO_MAX;
 
     /**
      * @see [[ExtrusionFeature#extrusion]]
@@ -592,7 +601,7 @@ export class ExtrusionFeatureMixin implements ExtrusionFeature {
     protected copyExtrusionParameters(source: ExtrusionFeature) {
         this.setExtrusionRatio(
             source.extrusionRatio === undefined
-                ? AnimatedExtrusionTileHandler.DEFAULT_RATIO_MAX
+                ? ExtrusionFeature.DEFAULT_RATIO_MAX
                 : source.extrusionRatio
         );
         return this;
@@ -669,7 +678,7 @@ export class MapMeshBasicMaterial extends THREE.MeshBasicMaterial
     }
 
     get extrusionRatio(): number {
-        return AnimatedExtrusionTileHandler.DEFAULT_RATIO_MAX;
+        return ExtrusionFeature.DEFAULT_RATIO_MAX;
     }
     // tslint:disable-next-line:no-unused-variable
     set extrusionRatio(value: number) {
@@ -778,7 +787,7 @@ export class MapMeshStandardMaterial extends THREE.MeshStandardMaterial
     }
 
     get extrusionRatio(): number {
-        return AnimatedExtrusionTileHandler.DEFAULT_RATIO_MAX;
+        return ExtrusionFeature.DEFAULT_RATIO_MAX;
     }
     // tslint:disable-next-line:no-unused-variable
     set extrusionRatio(value: number) {

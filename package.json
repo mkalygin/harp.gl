@@ -25,20 +25,24 @@
         "webpack-dev-server": "^3.7.2"
     },
     "scripts": {
-        "test": "ts-mocha -r tsconfig-paths/register ./test/*.ts ./@here/*/test/*.ts",
+        "test": "mocha",
         "start": "webpack-dev-server -d --config @here/harp-examples/webpack.config.js",
-        "build": "npm run build-bundle && npm run build-examples",
-        "build-examples": "webpack -d --config @here/harp-examples/webpack.config.js",
-        "build-bundle": "cd @here/harp.gl && webpack",
+        "build": "yarn build-bundle && yarn build-examples",
+        "build-bundle": "yarn tsc-sdk && cd @here/harp.gl && webpack",
+        "build-examples": "yarn tsc-examples && webpack -d --config @here/harp-examples/webpack.config.js",
+        "build-tests": "yarn tsc-tests && webpack -d --config webpack.tests.config.js",
         "start-tests": "webpack-dev-server -d --config webpack.tests.config.js",
         "test-browser": "ts-node -- ./scripts/with-http-server.ts -C dist/test -p 8079 -- mocha-webdriver-runner http://localhost:8079/index.html",
-        "build-tests": "webpack -d --config webpack.tests.config.js",
         "typedoc": "ts-node ./scripts/doc-snippets.ts && typedoc --disableOutputCheck --options typedoc.json",
         "tslint": "tslint --project tsconfig.json",
         "tslint:fix": "tslint --fix --project tsconfig.json",
         "prettier": "prettier -l '**/*.ts' '**/*.tsx' '**/*.json'",
         "prettier:fix": "prettier --write '**/*.ts' '**/*.tsx' '**/*.json'",
-        "postinstall": "ts-node ./scripts/postinstall.ts"
+        "postinstall": "ts-node ./scripts/postinstall.ts",
+        "tsc": "tsc -b ./tsconfig-build.json",
+        "tsc-examples": "tsc -b ./@here/harp-examples/tsconfig-build.json",
+        "tsc-sdk": "tsc -b ./tsconfig-build-sdk.json",
+        "tsc-tests": "tsc -b ./tsconfig-build-tests.json"
     },
     "engines": {
         "node": ">=9.11.1",

@@ -1,0 +1,10 @@
+{
+    "extends": "../../../tsconfig.settings.json",
+    "compilerOptions": {
+        "rootDir": ".",
+        "outDir": ".",
+        "listEmittedFiles": true,
+        "listFiles": true
+    },
+    "references": [{ "path": "../tsconfig-build.json" }]
+}
