@@ -5,6 +5,7 @@
  */
 
 import { Vector3Like } from "@here/harp-geoutils/lib/math/Vector3Like";
+import { MaybeInterpolatedProperty } from "./InterpolatedPropertyDefs";
 import {
     BasicExtrudedLineTechniqueParams,
     DashedLineTechniqueParams,
@@ -30,6 +31,14 @@ export interface Theme {
      * The URI of the JSON schema describing themes.
      */
     $schema?: string;
+
+    /**
+     * The base `Theme` or `theme` URL to extend.
+     *
+     * If used, base theme is loaded first, and then all the properties
+     * from inherited theme overwrite these defined in base theme.
+     */
+    extends?: string | Theme;
 
     /**
      * Actual URL the theme has been loaded from.
@@ -63,6 +72,11 @@ export interface Theme {
     fog?: Fog;
 
     /**
+     * The definitions exported by these theme.
+     */
+    definitions?: Definitions;
+
+    /**
      * Map styles available for datasources used to render the map.
      */
     styles?: Styles;
@@ -94,18 +108,147 @@ export interface Theme {
 }
 
 /**
- * A dictionary of [[Styles]]s.
+ * An array of [[Definition]]s.
  */
-export interface Styles {
-    [styleSetName: string]: StyleSet;
+export interface Definitions {
+    [name: string]: Definition;
 }
 
 /**
- * An array of [[Style]]s that are used together to define how a [[DataSource]] should be rendered.
- * `StyleSet`s are applied to sources providing vector tiles via their method `setStyleSet`. This
- * is also handle internally when a whole theme is passed to a [[MapView]] via `mapview.theme`.
+ * A value definition.
  */
-export type StyleSet = Style[];
+export type ValueDefinition =
+    | BooleanValueDefinition
+    | NumericValueDefinition
+    | StringValueDefinition
+    | ColorValueDefinition;
+
+/**
+ * Checks if the given definition implements the [[ValueDefinition]] interface.
+ */
+export function isValueDefinition(def: Definition): def is ValueDefinition {
+    const valueDef = def as ValueDefinition;
+    return (
+        typeof valueDef === "object" &&
+        valueDef !== null &&
+        typeof valueDef.type === "string" &&
+        valueDef.value !== undefined
+    );
+}
+
+/**
+ * A boolean value definition.
+ */
+export interface BooleanValueDefinition {
+    /**
+     * The description of the definition.
+     */
+    description?: string;
+
+    /**
+     * The the of the definition.
+     */
+    type: "boolean";
+
+    /**
+     * The value of the definition.
+     */
+    value: MaybeInterpolatedProperty<boolean>;
+}
+
+/**
+ * A numerical value definition.
+ */
+export interface NumericValueDefinition {
+    /**
+     * The description of the definition.
+     */
+    description?: string;
+
+    /**
+     * The the of the definition.
+     */
+    type: "number";
+
+    /**
+     * The value of the definition.
+     */
+    value: MaybeInterpolatedProperty<number>;
+}
+
+/**
+ * A string value definition.
+ */
+export interface StringValueDefinition {
+    /**
+     * The description of the definition.
+     */
+    description?: string;
+
+    /**
+     * The the of the definition.
+     */
+    type: "string";
+
+    /**
+     * The value of the definition.
+     */
+    value: string;
+}
+
+/**
+ * A color value definition.
+ */
+export interface ColorValueDefinition {
+    /**
+     * The description of the definition.
+     */
+    description?: string;
+
+    /**
+     * The the of the definition.
+     */
+    type: "color";
+
+    /**
+     * The value of the definition.
+     */
+    value: MaybeInterpolatedProperty<string>;
+}
+
+/**
+ * Base [StyleSelector] attributes required to match [Style] object against given feature.
+ */
+export interface BaseSelector {
+    /**
+     * Condition that is applied to feature properties to check if given [[Style]] this feature
+     * should emit geometry of this style.
+     */
+    when: string;
+
+    /**
+     * Array of substyles.
+     */
+    styles?: StyleSet;
+
+    /**
+     * Optional. If `true`, no more matching styles will be evaluated.
+     */
+    final?: boolean;
+}
+
+/**
+ * Compound type that merges all raw [Style] with selector arguments from [BaseSelector].
+ */
+export type StyleSelector = Style & BaseSelector;
+
+/**
+ * An array of [[StyleSelector]]s that are used together to define how a [[DataSource]] should be
+ * rendered. `StyleSet`s are applied to sources providing vector tiles via their method
+ * `setStyleSet`. This is also handle internally when a whole theme is passed to a [[MapView]] via
+ * `mapview.theme`.
+ */
+export type StyleSet = StyleSelector[];
 
 /**
  * The object that defines what way an item of a [[DataSource]] should be decoded to assemble a
@@ -117,11 +260,6 @@ export interface BaseStyle {
      * Human readable description.
      */
     description?: string;
-
-    /**
-     * Compile-time condition.
-     */
-    when: string;
 
     /**
      * Technique name. Must be one of `"line"`, `"fill"`, `"solid-line"`, `"dashed-line"`,
@@ -151,20 +289,10 @@ export interface BaseStyle {
     renderOrderBiasGroup?: string;
 
     /**
-     * Optional. If `true`, no more matching styles will be evaluated.
-     */
-    final?: boolean;
-
-    /**
      * Optional. If `true`, no IDs will be saved for the geometry this style creates. Default is
      * `false`.
      */
     transient?: boolean;
-
-    /**
-     * Array of substyles.
-     */
-    styles?: StyleSet;
 
     /**
      * Optional: If `true`, the objects with matching `when` statement will be printed to the
@@ -409,7 +537,62 @@ export type Style =
     | ShaderStyle
     | TerrainStyle
     | TextTechniqueStyle
-    | NoneStyle;
+    | NoneStyle
+    | ReferenceStyle;
+
+/**
+ * A dictionary of [[StyleSet]]s.
+ */
+export interface Styles {
+    [styleSetName: string]: StyleSet;
+}
+
+/**
+ * Possible values for `definitions` element of [Theme].
+ */
+export type Definition = ValueDefinition | Style;
+
+/**
+ * A reference to a style definition.
+ *
+ * Use as value `attrs` to reference value from `definitions`.
+ *
+ * Example of usage:
+ * ```json
+ * {
+ *   "definitions": {
+ *     "roadColor": { "type": "color", "value": "#f00" }
+ *   },
+ *   "styles": { "tilezen": [
+ *      {
+ *       "when": "kind == 'road",
+ *       "technique": "solid-line",
+ *       "attr": {
+ *         "lineColor": { "$ref": "roadColor" }
+ *       }
+ *     }
+ *   ] }
+ * }
+ * ```
+ */
+export interface Reference {
+    $ref: string;
+}
+
+/**
+ * Checks if the given value is a reference to a definition.
+ *
+ * @param value The value of a technique property.
+ */
+export function isReference(value: any): value is Reference {
+    const ref: Partial<Reference> = value;
+    return typeof ref === "object" && typeof ref.$ref === "string";
+}
+
+/**
+ * The attributes of a technique.
+ */
+export type Attr<T> = { [P in keyof T]?: T[P] | Reference };
 
 /**
  * Render feature as set of squares rendered in screen space.
@@ -418,7 +601,7 @@ export type Style =
  */
 export interface SquaresStyle extends BaseStyle {
     technique: "squares";
-    attr?: Partial<PointTechniqueParams>;
+    attr?: Attr<PointTechniqueParams>;
 }
 
 /**
@@ -428,7 +611,7 @@ export interface SquaresStyle extends BaseStyle {
  */
 export interface CirclesStyle extends BaseStyle {
     technique: "circles";
-    attr?: Partial<PointTechniqueParams>;
+    attr?: Attr<PointTechniqueParams>;
 }
 
 /**
@@ -438,7 +621,7 @@ export interface CirclesStyle extends BaseStyle {
  */
 export interface PoiStyle extends BaseStyle {
     technique: "labeled-icon";
-    attr?: Partial<MarkerTechniqueParams>;
+    attr?: Attr<MarkerTechniqueParams>;
 }
 
 /**
@@ -448,7 +631,7 @@ export interface PoiStyle extends BaseStyle {
  */
 export interface LineMarkerStyle extends BaseStyle {
     technique: "line-marker";
-    attr?: Partial<MarkerTechniqueParams>;
+    attr?: Attr<MarkerTechniqueParams>;
 }
 
 /**
@@ -457,7 +640,7 @@ export interface LineMarkerStyle extends BaseStyle {
 export interface LineStyle extends BaseStyle {
     technique: "line";
     secondaryRenderOrder?: number;
-    attr?: Partial<MarkerTechniqueParams>;
+    attr?: Attr<MarkerTechniqueParams>;
 }
 
 /**
@@ -465,45 +648,45 @@ export interface LineStyle extends BaseStyle {
  */
 export interface SegmentsStyle extends BaseStyle {
     technique: "segments";
-    attr?: Partial<SegmentsTechniqueParams>;
+    attr?: Attr<SegmentsTechniqueParams>;
 }
 
 export interface SolidLineStyle extends BaseStyle {
     technique: "solid-line";
     secondaryRenderOrder?: number;
-    attr?: Partial<SolidLineTechniqueParams>;
+    attr?: Attr<SolidLineTechniqueParams>;
 }
 
 export interface DashedLineStyle extends BaseStyle {
     technique: "dashed-line";
-    attr?: Partial<DashedLineTechniqueParams>;
+    attr?: Attr<DashedLineTechniqueParams>;
 }
 
 export interface FillStyle extends BaseStyle {
     technique: "fill";
-    attr?: Partial<FillTechniqueParams>;
+    attr?: Attr<FillTechniqueParams>;
 }
 
 export interface StandardStyle extends BaseStyle {
     technique: "standard";
-    attr?: Partial<StandardTechniqueParams>;
+    attr?: Attr<StandardTechniqueParams>;
 }
 
 export interface TerrainStyle extends BaseStyle {
     technique: "terrain";
-    attr?: Partial<TerrainTechniqueParams>;
+    attr?: Attr<TerrainTechniqueParams>;
 }
 
 export interface BasicExtrudedLineStyle extends BaseStyle {
     technique: "extruded-line";
     shading?: "basic";
-    attr?: Partial<BasicExtrudedLineTechniqueParams>;
+    attr?: Attr<BasicExtrudedLineTechniqueParams>;
 }
 
 export interface StandardExtrudedLineStyle extends BaseStyle {
     technique: "extruded-line";
     shading: "standard";
-    attr?: Partial<StandardExtrudedLineTechniqueParams>;
+    attr?: Attr<StandardExtrudedLineTechniqueParams>;
 }
 
 /**
@@ -511,21 +694,31 @@ export interface StandardExtrudedLineStyle extends BaseStyle {
  */
 export interface ExtrudedPolygonStyle extends BaseStyle {
     technique: "extruded-polygon";
-    attr?: Partial<ExtrudedPolygonTechniqueParams>;
+    attr?: Attr<ExtrudedPolygonTechniqueParams>;
 }
 
 export interface ShaderStyle extends BaseStyle {
     technique: "shader";
-    attr?: Partial<ShaderTechniqueParams>;
+    attr?: Attr<ShaderTechniqueParams>;
 }
 
 export interface TextTechniqueStyle extends BaseStyle {
     technique: "text";
-    attr?: Partial<TextTechniqueParams>;
+    attr?: Attr<TextTechniqueParams>;
 }
 
 export interface NoneStyle extends BaseStyle {
     technique: "none";
+    attr?: {
+        [name: string]: any;
+    };
+}
+
+export interface ReferenceStyle extends BaseStyle {
+    // TODO: technique is not needed, but without, typedoc 0.14.2 refuses to compile
+    // one of styles in examples
+    technique?: "ref";
+    $ref: string;
     attr?: {
         [name: string]: any;
     };

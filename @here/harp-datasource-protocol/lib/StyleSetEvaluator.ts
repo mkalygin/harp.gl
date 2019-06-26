@@ -10,7 +10,7 @@ import { Expr, MapEnv } from "./Expr";
 import { isInterpolatedPropertyDefinition } from "./InterpolatedProperty";
 import { InterpolatedPropertyDefinition, InterpolationMode } from "./InterpolatedPropertyDefs";
 import { IndexedTechnique, Technique } from "./Techniques";
-import { Style, StyleSet } from "./Theme";
+import { StyleSelector, StyleSet } from "./Theme";
 
 export const logger = LoggerManager.instance.create("StyleSetEvaluator");
 
@@ -33,7 +33,7 @@ interface StyleInternalParams {
     _styleSetIndex?: number;
 }
 
-type InternalStyle = Style & Partial<StyleInternalParams>;
+type InternalStyle = StyleSelector & Partial<StyleInternalParams>;
 
 /**
  * Combine data from datasource and apply the rules from a specified theme to show it on the map.
@@ -48,7 +48,7 @@ export class StyleSetEvaluator {
         let techniqueRenderOrder = 0;
         let styleSetIndex = 0;
 
-        const cloneStyle = (style: Style): Style => {
+        const cloneStyle = (style: StyleSelector): StyleSelector => {
             return {
                 ...style,
                 styles:
@@ -125,7 +125,7 @@ export class StyleSetEvaluator {
      */
     getMatchingTechniques(env: MapEnv): IndexedTechnique[] {
         const result: IndexedTechnique[] = [];
-        const styleStack = new Array<Style>();
+        const styleStack = new Array<StyleSelector>();
         for (const currStyle of this.styleSet) {
             if (styleStack.length !== 0) {
                 throw new Error("Internal error: style stack cleanup failed");
@@ -175,8 +175,8 @@ export class StyleSetEvaluator {
      */
     private processStyle(
         env: MapEnv,
-        styleStack: Style[],
-        style: Style & Partial<InternalStyle>,
+        styleStack: StyleSelector[],
+        style: StyleSelector & Partial<InternalStyle>,
         result: Technique[]
     ): boolean {
         if (style.when !== undefined) {

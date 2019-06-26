@@ -54,6 +54,7 @@ export namespace GlobeExample {
         });
 
         map.addDataSource(omvDataSource);
+        omvDataSource.addTileBackground = false;
 
         MapControls.create(map);
 
