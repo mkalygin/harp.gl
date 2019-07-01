@@ -101,7 +101,12 @@ describe("ThemeLoader", function() {
             const inheritedTheme: Theme = {
                 extends: baseTheme,
                 definitions: {
-                    roadColor: { type: "color", value: "#fff" }
+                    roadColor: { type: "color", value: "#fff" },
+                    roadStyle: {
+                        attr: {
+                            opacity: 5
+                        }
+                    }
                 }
             };
 
@@ -111,7 +116,15 @@ describe("ThemeLoader", function() {
             assert.exists(result.definitions!.roadColor);
             assert.exists(result.definitions!.roadStyle);
             assert.deepEqual(result.definitions!.roadColor, { type: "color", value: "#fff" });
-            assert.deepEqual(result.definitions!.roadStyle, baseTheme.definitions!.roadStyle);
+            assert.deepEqual(result.definitions!.roadStyle, {
+                description: "roads",
+                technique: "solid-line",
+                attr: {
+                    lineWidth: { $ref: "primaryRoadFillLineWidth" },
+                    lineColor: { $ref: "roadColor" },
+                    opacity: 5
+                }
+            });
         });
     });
 
@@ -187,6 +200,29 @@ describe("ThemeLoader", function() {
             assert.exists(result);
             assert.exists(result.styles!.tilezen);
             assert.deepEqual(result.styles!.tilezen, expectedOverridenStyleSet);
+        });
+    });
+
+    describe("#mergePropertiesDeep", function() {
+        const samples: Array<[any, any, any, string]> = [
+            [1, 2, 2, "leaf override"],
+            [1, undefined, 1, "undefined doesn't override"],
+            [1, null, null, "null overrides"],
+            [[1, 2, 3], [4, 5, 6], [4, 5, 6], "arrays are overriden as whole"],
+            [{ a: "a" }, { b: "b" }, { a: "a", b: "b" }, "basic object merge"],
+            [{ a: "a" }, { a: "a2" }, { a: "a2" }, "override of property"],
+            [
+                { a: "a", c: { d: "d", e: "e" } },
+                { c: { d: "d2" } },
+                { a: "a", c: { d: "d2", e: "e" } },
+                "deep override of property"
+            ]
+        ];
+
+        samples.forEach(sample => {
+            it(sample[3], function() {
+                assert.deepEqual(ThemeLoader.mergePropertiesDeep(sample[0], sample[1]), sample[2]);
+            });
         });
     });
 });

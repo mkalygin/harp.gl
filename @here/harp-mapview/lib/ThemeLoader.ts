@@ -260,11 +260,45 @@ export class ThemeLoader {
 
         const actualBaseTheme = await ThemeLoader.load(baseTheme, false);
 
-        const definitions = { ...actualBaseTheme.definitions, ...theme.definitions };
+        const definitions = ThemeLoader.mergePropertiesDeep(
+            actualBaseTheme.definitions,
+            theme.definitions
+        );
         const styles = { ...actualBaseTheme.styles, ...theme.styles };
         return this.resolveBaseTheme(
             { ...actualBaseTheme, ...theme, definitions, styles },
             maxInheritanceDepth - 1
         );
+    }
+
+    /**
+     * Merge objects deep.
+     * @param a
+     * @param b
+     */
+    static mergePropertiesDeep<T extends any>(a: T, b: T): T {
+        if (b === null) {
+            return null!;
+        } else if (b === undefined) {
+            return a;
+        } else if (Array.isArray(b)) {
+            return b;
+        } else if (typeof b === "object") {
+            if (typeof a !== "object") {
+                return b;
+            } else {
+                const r = { ...a };
+                for (const bKey in b) {
+                    if (b.hasOwnProperty(bKey)) {
+                        const aValue = r[bKey];
+                        const bValue = b[bKey];
+                        r[bKey] = ThemeLoader.mergePropertiesDeep(aValue, bValue);
+                    }
+                }
+                return r;
+            }
+        } else {
+            return b;
+        }
     }
 }

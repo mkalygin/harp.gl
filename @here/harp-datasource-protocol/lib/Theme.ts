@@ -548,9 +548,35 @@ export interface Styles {
 }
 
 /**
+ * TODO: Decide, if this is needed.
+ *
+ * This special `style` type, used in definitions is needed to enable convenient way of overriding
+ * selected base definition properties, by specifying only partial style, like this:
+ *
+ * ```
+ * // Assuming `baseTheme` contains complete `roadStyle` definition, we want inherited theme to
+ * // override onlyvery few, selected properties _not_ named explictly in definitions.
+ *
+ * const inheritedTheme: Theme = {
+ *   extends: baseTheme,
+ *   definitions: {
+ *     roadStyle: {
+ *       attr: {
+ *         opacity: 5 // override only one
+ *       }
+ *     }
+ *  };
+ * ```
+ */
+export interface InheritedStyleDefinition {
+    type?: string;
+    when?: string;
+    [name: string]: unknown;
+}
+/**
  * Possible values for `definitions` element of [Theme].
  */
-export type Definition = ValueDefinition | Style;
+export type Definition = ValueDefinition | Style | InheritedStyleDefinition;
 
 /**
  * A reference to a style definition.
