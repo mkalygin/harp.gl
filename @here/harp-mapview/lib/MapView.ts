@@ -17,7 +17,10 @@ import {
     MathUtils,
     mercatorProjection,
     Projection,
-    ProjectionType
+    ProjectionType,
+    TilingScheme,
+    webMercatorTilingScheme,
+    TileKey
 } from "@here/harp-geoutils";
 import { assert, getOptionValue, LoggerManager, PerformanceTimer } from "@here/harp-utils";
 import * as THREE from "three";
@@ -522,6 +525,25 @@ export const MapViewDefaults = {
             : 1.0
 };
 
+class BackgroundDataSource extends DataSource {
+    constructor(name: string = "background") {
+        super(name, undefined, 1, 20);
+        this.addTileBackground = true;
+        this.tileBackgroundIsVisible = true;
+        this.cacheable = true;
+    }
+
+    getTilingScheme(): TilingScheme {
+        return webMercatorTilingScheme;
+    }
+
+    getTile(tileKey: TileKey): Tile | undefined {
+        const tile = new Tile(this, tileKey);
+        tile.forceHasGeometry(true);
+        return tile;
+    }
+}
+
 /**
  * The core class of the library to call in order to create a map visualization. It needs to be
  * linked to datasources.
@@ -614,6 +636,7 @@ export class MapView extends THREE.EventDispatcher {
     //
     private readonly m_tileDataSources: DataSource[] = [];
     private readonly m_connectedDataSources = new Set<string>();
+    private readonly m_backgroundDataSource: BackgroundDataSource;
 
     // gestures
     private readonly m_raycaster = new THREE.Raycaster();
@@ -819,6 +842,9 @@ export class MapView extends THREE.EventDispatcher {
         );
 
         this.m_animatedExtrusionHandler = new AnimatedExtrusionHandler(this);
+
+        this.m_backgroundDataSource = new BackgroundDataSource();
+        this.addDataSource(this.m_backgroundDataSource);
 
         this.initTheme();
 
@@ -1132,6 +1158,14 @@ export class MapView extends THREE.EventDispatcher {
      */
     get frameNumber(): number {
         return this.m_frameNumber;
+    }
+
+    get showBackground() {
+        return this.m_backgroundDataSource.enabled;
+    }
+
+    set showBackground(visible: boolean) {
+        this.m_backgroundDataSource.enabled = visible;
     }
 
     /**

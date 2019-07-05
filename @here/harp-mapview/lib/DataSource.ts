@@ -45,7 +45,8 @@ export abstract class DataSource extends THREE.EventDispatcher {
      * able to pick the tile with the help of the tile background, tile background does not have to
      * be visible (set `tileBackgroundIsVisible` to `false`).
      */
-    addTileBackground: boolean = true;
+    // TODO: Setting this to false will break picking?
+    addTileBackground: boolean = false;
 
     /**
      * If defined, this option defines the color of the tile background. If it is `undefined`, the

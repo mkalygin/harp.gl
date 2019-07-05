@@ -208,7 +208,7 @@ export class OmvDataSource extends TileDataSource<OmvTile> {
             storageLevelOffset: getOptionValue(m_params.storageLevelOffset, -1)
         };
 
-        this.tileBackgroundIsVisible = true;
+        //this.tileBackgroundIsVisible = true;
     }
 
     /**

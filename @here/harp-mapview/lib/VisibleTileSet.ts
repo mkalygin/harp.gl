@@ -837,6 +837,7 @@ export class VisibleTileSet {
     }
 
     // Computes the visible tiles for each supplied datasource.
+    // TODO: Check tile intersection is cached for same tile scheme.
     private getVisibleTilesForDataSources(
         worldCenter: THREE.Vector3,
         zoomLevel: number,

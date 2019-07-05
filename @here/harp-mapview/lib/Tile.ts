@@ -71,6 +71,7 @@ const MINIMUM_OBJECT_SIZE_ESTIMATION = 100;
 /**
  * A default empty [[DecodedTile]], for tiles that must be rendered but do not have any objects.
  */
+// TODO: How to freeze this object.
 const defaultEmptyDecodedTile: DecodedTile = {
     techniques: [],
     geometries: []
