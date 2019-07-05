@@ -382,17 +382,24 @@ export class VisibleTileSet {
     }
 
     getTile(dataSource: DataSource, tileKey: TileKey, offset: number = 0): Tile | undefined {
-        function updateTile(tileToUpdate?: Tile) {
-            if (tileToUpdate === undefined) {
-                return;
-            }
+        function updateTile(tileToUpdate: Tile) {
             // Keep the tile from being removed from the cache.
             tileToUpdate.frameNumLastRequested = dataSource.mapView.frameNumber;
         }
 
+        const initTile = (tileToInit: Tile) => {
+            tileToInit.offset = offset;
+            this.m_tileGeometryManager.initTile(tileToInit);
+            updateTile(tileToInit);
+        };
+
+        // TODO: Geometry generation is done asynchronously, and then it's expected to be used
+        // in the next update, taking it from the cache, so not cacheable tiles will never be drawn?
         if (!dataSource.cacheable) {
             const resultTile = dataSource.getTile(tileKey);
-            updateTile(resultTile);
+            if (resultTile !== undefined) {
+                initTile(resultTile);
+            }
             return resultTile;
         }
 
@@ -409,10 +416,8 @@ export class VisibleTileSet {
         tile = dataSource.getTile(tileKey);
 
         if (tile !== undefined) {
-            tile.offset = offset;
-            updateTile(tile);
+            initTile(tile);
             tileCache.set(tileKeyMortonCode, tile);
-            this.m_tileGeometryManager.initTile(tile);
         }
         return tile;
     }
