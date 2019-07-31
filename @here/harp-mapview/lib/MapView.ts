@@ -167,6 +167,7 @@ export interface RenderEvent extends THREE.Event {
 }
 
 // Event type: cast needed to workaround wrong THREE.js typings.
+const UPDATE: RenderEvent = { type: MapViewEventNames.Update } as any;
 const RENDER_EVENT: RenderEvent = { type: MapViewEventNames.Render } as any;
 const DID_RENDER_EVENT: RenderEvent = { type: MapViewEventNames.AfterRender } as any;
 const FIRST_FRAME_EVENT: RenderEvent = { type: MapViewEventNames.FirstFrame } as any;
@@ -530,6 +531,14 @@ export interface MapViewOptions {
      * Hint for the WebGL implementation on which power mode to prefer.
      */
     powerPreference?: MapViewPowerPreference;
+
+    /**
+     * Set to `true` to allow rendering scene synchronously.
+     *
+     * @default `false`.
+     */
+    synchronousRendering?: boolean;
+
 }
 
 /**
@@ -879,7 +888,11 @@ export class MapView extends THREE.EventDispatcher {
 
         this.initTheme();
 
-        this.drawFrame();
+        this.update();
+        // this.drawFrame(); ??????
+
+        this.canvas.addEventListener("webglcontextlost", this.onWebGLContextLost);
+        this.canvas.addEventListener("webglcontextrestored", this.onWebGLContextRestored);
     }
 
     /**
@@ -2003,9 +2016,21 @@ export class MapView extends THREE.EventDispatcher {
     }
 
     /**
+     * Redraws scene synchronously
+     *
+     * Note: Internal `maxFps` will be overriden and may not work properly as `renderSync` inteded
+     * to be called from external render loop.
+     */
+    renderSync() {
+        this.renderFunc(PerformanceTimer.now());
+    }
+
+    /**
      * Requests a redraw of the scene.
      */
     update() {
+        this.dispatchEvent(UPDATE);
+
         if (this.m_updatePending) {
             return;
         } // compress the update request
@@ -2271,7 +2296,7 @@ export class MapView extends THREE.EventDispatcher {
      * Draw a new frame.
      */
     private drawFrame() {
-        if (this.m_drawing) {
+        if (this.m_drawing || this.m_options.synchronousRendering) {
             return;
         }
         // Cancel an active requestAnimationFrame() cycle. Failure to do this may end up in
