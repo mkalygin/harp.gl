@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MapEnv } from "@here/harp-datasource-protocol/index-decoder";
+import { FeatureEnv, MapEnv } from "@here/harp-datasource-protocol/index-decoder";
 import { LoggerManager } from "@here/harp-utils";
 import { OmvGenericFeatureModifier } from "./OmvDataFilter";
 import { OmvFeatureFilterDescription, OmvFilterDescription } from "./OmvDecoderDefs";
@@ -29,10 +29,10 @@ export class OmvTomTomFeatureModifier extends OmvGenericFeatureModifier {
         itemsToProcess: OmvFilterDescription[],
         itemsToIgnore: OmvFilterDescription[],
         layer: string,
-        env: MapEnv,
+        env: FeatureEnv,
         defaultResult: boolean
     ): boolean {
-        this.rewriteEnvironment(layer, env);
+        this.rewriteEnvironment(layer, env.env);
         return super.doProcessFeature(itemsToProcess, itemsToIgnore, layer, env, defaultResult);
     }
 

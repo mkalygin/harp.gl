@@ -10,7 +10,7 @@ import {
     FeatureGroupType,
     IndexedTechnique
 } from "@here/harp-datasource-protocol";
-import { MapEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
+import { FeatureEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
 import * as THREE from "three";
 
 import { webMercatorProjection } from "@here/harp-geoutils";
@@ -48,7 +48,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
     processPointFeature(
         layer: string,
         geometry: THREE.Vector3[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -73,7 +73,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
                 tileInfoWriter.addFeature(
                     this.m_tileInfo.pointGroup,
                     technique,
-                    env,
+                    env.env,
                     featureId,
                     infoTileTechniqueIndex,
                     FeatureGroupType.Point
@@ -87,7 +87,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
     processLineFeature(
         layer: string,
         geometry: ILineGeometry[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -121,7 +121,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
                 tileInfoWriter.addFeature(
                     this.m_tileInfo.lineGroup,
                     technique,
-                    env,
+                    env.env,
                     featureId,
                     infoTileTechniqueIndex,
                     FeatureGroupType.Line
@@ -132,10 +132,10 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
         }
 
         if (this.m_gatherRoadSegments) {
-            const segmentId = env.lookup("segmentId") as number;
+            const segmentId = env.env.lookup("segmentId") as number;
             if (segmentId !== undefined) {
-                const startOffset = env.lookup("startOffset");
-                const endOffset = env.lookup("endOffset");
+                const startOffset = env.env.lookup("startOffset");
+                const endOffset = env.env.lookup("endOffset");
                 tileInfoWriter.addRoadSegments(
                     this.m_tileInfo.lineGroup,
                     segmentId,
@@ -149,7 +149,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
     processPolygonFeature(
         layer: string,
         geometry: IPolygonGeometry[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -192,7 +192,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
             tileInfoWriter.addFeature(
                 this.m_tileInfo.polygonGroup,
                 technique,
-                env,
+                env.env,
                 featureId,
                 infoTileTechniqueIndex,
                 FeatureGroupType.Polygon

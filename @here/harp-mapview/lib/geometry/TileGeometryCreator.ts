@@ -29,6 +29,7 @@ import {
     isTerrainTechnique,
     isTextTechnique,
     LineMarkerTechnique,
+    MakeTechniqueAttrs,
     needsVertexNormals,
     PoiTechnique,
     SolidLineTechnique,
@@ -788,7 +789,7 @@ export class TileGeometryCreator {
 
                 object.frustumCulled = false;
 
-                object.renderOrder = technique.renderOrder;
+                object.renderOrder = technique.renderOrder!;
 
                 if (group.renderOrderOffset !== undefined) {
                     object.renderOrder += group.renderOrderOffset;
@@ -1544,7 +1545,7 @@ export class TileGeometryCreator {
      */
     private getFadingParams(
         displayZoomLevel: number,
-        technique: BaseTechniqueParams
+        technique: MakeTechniqueAttrs<BaseTechniqueParams>
     ): FadingParameters {
         const fadeNear =
             technique.fadeNear !== undefined

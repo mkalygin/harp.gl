@@ -25,7 +25,7 @@ export class OmvTomTomModifierMock extends OmvTomTomFeatureModifier {
             this.m_description.linesToProcess,
             this.m_description.linesToIgnore,
             layer,
-            env,
+            { env, storageLevel: 10 },
             true
         );
     }

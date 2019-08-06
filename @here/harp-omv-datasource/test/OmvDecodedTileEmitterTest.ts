@@ -13,7 +13,11 @@ import {
     StyleSet,
     TextureCoordinateType
 } from "@here/harp-datasource-protocol";
-import { MapEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
+import {
+    FeatureEnv,
+    MapEnv,
+    StyleSetEvaluator
+} from "@here/harp-datasource-protocol/index-decoder";
 import {
     GeoCoordinates,
     mercatorProjection,
@@ -67,8 +71,12 @@ describe("OmvDecodedTileEmitter", function() {
 
         const tileEmmiter = new OmvDecodedTileEmitter(decodeInfo, styleSetEvaluator, false, false);
 
-        const mockEnv = new MapEnv({ layer: "mock-layer" });
-        const matchedTechniques = styleSetEvaluator.getMatchingTechniques(mockEnv);
+        const mockEnv: FeatureEnv = {
+            env: new MapEnv({ layer: "mock-layer" }),
+            storageLevel: 10
+        };
+
+        const matchedTechniques = styleSetEvaluator.getMatchingTechniques(mockEnv.env);
         tileEmmiter.processPolygonFeature(
             "mock-layer",
             polygons,

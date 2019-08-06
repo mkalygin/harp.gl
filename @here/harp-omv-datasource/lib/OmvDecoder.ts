@@ -3,6 +3,7 @@
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import {
     DecodedTile,
     ExtendedTileInfo,
@@ -10,10 +11,9 @@ import {
     IndexedTechnique,
     OptionsMap,
     StyleSet,
-    Technique,
     TileInfo
 } from "@here/harp-datasource-protocol";
-import { Env, MapEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
+import { Env, FeatureEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
 import { OrientedBox3 } from "@here/harp-geometry";
 import {
     GeoBox,
@@ -134,24 +134,24 @@ export interface IOmvEmitter {
     processPointFeature(
         layer: string,
         geometry: THREE.Vector3[],
-        env: MapEnv,
-        techniques: Technique[],
+        env: FeatureEnv,
+        techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void;
 
     processLineFeature(
         layer: string,
         feature: ILineGeometry[],
-        env: MapEnv,
-        techniques: Technique[],
+        env: FeatureEnv,
+        techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void;
 
     processPolygonFeature(
         layer: string,
         feature: IPolygonGeometry[],
-        env: MapEnv,
-        techniques: Technique[],
+        env: FeatureEnv,
+        techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void;
 }
@@ -269,21 +269,16 @@ export class OmvDecoder implements IGeometryProcessor {
         return this.m_infoTileEmitter.getTileInfo();
     }
 
-    processPointFeature(
-        layer: string,
-        geometry: THREE.Vector3[],
-        env: MapEnv,
-        storageLevel: number
-    ): void {
+    processPointFeature(layer: string, geometry: THREE.Vector3[], env: FeatureEnv): void {
         if (
             this.m_featureModifier !== undefined &&
-            !this.m_featureModifier.doProcessPointFeature(layer, env, storageLevel)
+            !this.m_featureModifier.doProcessPointFeature(layer, env)
         ) {
             return;
         }
 
         const techniques = this.applyKindFilter(
-            this.m_styleSetEvaluator.getMatchingTechniques(env),
+            this.m_styleSetEvaluator.getMatchingTechniques(env.env),
             GeometryKind.Label
         );
 
@@ -291,13 +286,13 @@ export class OmvDecoder implements IGeometryProcessor {
             if (this.m_showMissingTechniques) {
                 logger.log(
                     "OmvDecoder#processPointFeature: no techniques for object:",
-                    JSON.stringify(env.unmap())
+                    JSON.stringify(env.env.unmap())
                 );
             }
             return;
         }
 
-        const featureId = env.lookup("$id") as number | undefined;
+        const featureId = env.env.lookup("$id") as number | undefined;
 
         if (this.m_decodedTileEmitter) {
             this.m_decodedTileEmitter.processPointFeature(
@@ -313,21 +308,16 @@ export class OmvDecoder implements IGeometryProcessor {
         }
     }
 
-    processLineFeature(
-        layer: string,
-        geometry: ILineGeometry[],
-        env: MapEnv,
-        storageLevel: number
-    ): void {
+    processLineFeature(layer: string, geometry: ILineGeometry[], env: FeatureEnv): void {
         if (
             this.m_featureModifier !== undefined &&
-            !this.m_featureModifier.doProcessLineFeature(layer, env, storageLevel)
+            !this.m_featureModifier.doProcessLineFeature(layer, env)
         ) {
             return;
         }
 
         const techniques = this.applyKindFilter(
-            this.m_styleSetEvaluator.getMatchingTechniques(env),
+            this.m_styleSetEvaluator.getMatchingTechniques(env.env),
             GeometryKind.Line
         );
 
@@ -335,13 +325,13 @@ export class OmvDecoder implements IGeometryProcessor {
             if (this.m_showMissingTechniques) {
                 logger.log(
                     "OmvDecoder#processLineFeature: no techniques for object:",
-                    JSON.stringify(env.unmap())
+                    JSON.stringify(env.env.unmap())
                 );
             }
             return;
         }
 
-        const featureId = env.lookup("$id") as number | undefined;
+        const featureId = env.env.lookup("$id") as number | undefined;
 
         if (this.m_decodedTileEmitter) {
             this.m_decodedTileEmitter.processLineFeature(
@@ -357,21 +347,16 @@ export class OmvDecoder implements IGeometryProcessor {
         }
     }
 
-    processPolygonFeature(
-        layer: string,
-        geometry: IPolygonGeometry[],
-        env: MapEnv,
-        storageLevel: number
-    ): void {
+    processPolygonFeature(layer: string, geometry: IPolygonGeometry[], env: FeatureEnv): void {
         if (
             this.m_featureModifier !== undefined &&
-            !this.m_featureModifier.doProcessPolygonFeature(layer, env, storageLevel)
+            !this.m_featureModifier.doProcessPolygonFeature(layer, env)
         ) {
             return;
         }
 
         const techniques = this.applyKindFilter(
-            this.m_styleSetEvaluator.getMatchingTechniques(env),
+            this.m_styleSetEvaluator.getMatchingTechniques(env.env),
             GeometryKind.Area
         );
 
@@ -379,13 +364,13 @@ export class OmvDecoder implements IGeometryProcessor {
             if (this.m_showMissingTechniques) {
                 logger.log(
                     "OmvDecoder#processPolygonFeature: no techniques for object:",
-                    JSON.stringify(env.unmap())
+                    JSON.stringify(env.env.unmap())
                 );
             }
             return;
         }
 
-        const featureId = env.lookup("$id") as number | undefined;
+        const featureId = env.env.lookup("$id") as number | undefined;
         if (this.m_decodedTileEmitter) {
             this.m_decodedTileEmitter.processPolygonFeature(
                 layer,

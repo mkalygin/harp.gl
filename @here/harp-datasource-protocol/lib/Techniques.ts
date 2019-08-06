@@ -5,6 +5,7 @@
  */
 
 import {
+    BaseTechniqueParams,
     BasicExtrudedLineTechniqueParams,
     DashedLineTechniqueParams,
     ExtrudedPolygonTechniqueParams,
@@ -13,6 +14,7 @@ import {
     LineTechniqueParams,
     MarkerTechniqueParams,
     PointTechniqueParams,
+    PolygonalTechniqueParams,
     SegmentsTechniqueParams,
     ShaderTechniqueParams,
     SolidLineTechniqueParams,
@@ -23,6 +25,13 @@ import {
     TextureCoordinateType
 } from "./TechniqueParams";
 
+import { Expr, JsonExpr } from "./Expr";
+import { InterpolatedProperty, InterpolatedPropertyDefinition } from "./InterpolatedPropertyDefs";
+import {
+    mergeTechniqueDescriptor,
+    TechniqueDescriptor,
+    TechniqueDescriptorRegistry
+} from "./TechniqueDescriptor";
 /**
  * Names of the supported texture properties.
  */
@@ -37,115 +46,334 @@ export const TEXTURE_PROPERTY_KEYS = [
     "bumpMap"
 ];
 
+// TODO: Can be removed, when all when interpolators are implemented as [[Expr]]s
+export type RemoveInterpolatedPropDef<T> = (T | InterpolatedPropertyDefinition<any>) extends T
+    ? Exclude<T, InterpolatedPropertyDefinition<any>>
+    : T;
+export type RemoveJsonExpr<T> = (T | JsonExpr) extends T ? Exclude<T, JsonExpr> : T;
+
+/**
+ * Make runtime representation of technique attributes from JSON-compatible typings.
+ *
+ * Translates
+ *  - InterpolatedPropertyDefinition -> InterpolatedProperty
+ *  - JsonExpr -> Expr
+ */
+export type MakeTechniqueAttrs<T> = {
+    [P in keyof T]: (T[P] | JsonExpr) extends T[P]
+        ? RemoveInterpolatedPropDef<RemoveJsonExpr<T[P]>> | Expr | InterpolatedProperty<number>
+        : T[P];
+};
+
+export const techniqueDescriptors: TechniqueDescriptorRegistry = {};
+
+export const baseTechniqueParamsDescriptor: TechniqueDescriptor<BaseTechniqueParams> = {
+    featurePropNames: [],
+    techniquePropNames: ["renderOrder"],
+    dynamicPropNames: ["fadeFar", "fadeNear"]
+};
+
+export const pointTechniquePropTypes = mergeTechniqueDescriptor<PointTechniqueParams>(
+    baseTechniqueParamsDescriptor,
+    {
+        techniquePropNames: ["texture", "enablePicking"],
+        dynamicPropNames: ["color", "transparent", "opacity"]
+    }
+);
+
 /**
  * Runtime representation of [[SquaresStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface SquaresTechnique extends PointTechniqueParams {
+export interface SquaresTechnique extends MakeTechniqueAttrs<PointTechniqueParams> {
     name: "squares";
 }
+
+export const squaresTechniquePropTypes = mergeTechniqueDescriptor<SquaresTechnique>(
+    baseTechniqueParamsDescriptor,
+    pointTechniquePropTypes
+);
+techniqueDescriptors.squares = squaresTechniquePropTypes;
 
 /**
  * Runtime representation of [[CirclesStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface CirclesTechnique extends PointTechniqueParams {
+export interface CirclesTechnique extends MakeTechniqueAttrs<PointTechniqueParams> {
     name: "circles";
 }
+
+export const circlesTechniquePropTypes = mergeTechniqueDescriptor<CirclesTechnique>(
+    baseTechniqueParamsDescriptor,
+    pointTechniquePropTypes
+);
+techniqueDescriptors.circles = circlesTechniquePropTypes;
 
 /**
  * Runtime representation of [[PoiStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface PoiTechnique extends MarkerTechniqueParams {
+export interface PoiTechnique extends MakeTechniqueAttrs<MarkerTechniqueParams> {
     name: "labeled-icon";
 }
 
 /**
  * Runtime representation of [[LineMarkerStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface LineMarkerTechnique extends MarkerTechniqueParams {
+export interface LineMarkerTechnique extends MakeTechniqueAttrs<MarkerTechniqueParams> {
     name: "line-marker";
 }
 
 /**
  * Runtime representation of [[SegmentsStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface SegmentsTechnique extends SegmentsTechniqueParams {
+export interface SegmentsTechnique extends MakeTechniqueAttrs<SegmentsTechniqueParams> {
     name: "segments";
 }
 
+const polygonalTechniqueDescriptor: TechniqueDescriptor<PolygonalTechniqueParams> = {
+    featurePropNames: [],
+    techniquePropNames: [],
+    dynamicPropNames: [
+        "polygonOffset",
+        "polygonOffsetFactor",
+        "polygonOffsetUnits",
+        "lineColor",
+        "lineFadeNear",
+        "lineFadeFar"
+    ]
+};
 /**
  * Runtime representation of [[BasicExtrudedLineStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface BasicExtrudedLineTechnique extends BasicExtrudedLineTechniqueParams {
+export interface BasicExtrudedLineTechnique
+    extends MakeTechniqueAttrs<BasicExtrudedLineTechniqueParams> {
     name: "extruded-line";
 }
 
 /**
  * Runtime representation of [[StandardExtrudedLineStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface StandardExtrudedLineTechnique extends StandardExtrudedLineTechniqueParams {
+export interface StandardExtrudedLineTechnique
+    extends MakeTechniqueAttrs<StandardExtrudedLineTechniqueParams> {
     name: "extruded-line";
 }
 
 /**
  * Runtime representation of [[SolidLineStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface SolidLineTechnique extends SolidLineTechniqueParams {
+export interface SolidLineTechnique extends MakeTechniqueAttrs<SolidLineTechniqueParams> {
     name: "solid-line";
 }
+
+export const solidLineTechniqueDescriptor = mergeTechniqueDescriptor<SolidLineTechnique>(
+    baseTechniqueParamsDescriptor,
+    polygonalTechniqueDescriptor,
+    {
+        techniquePropNames: ["clipping", "secondaryRenderOrder"],
+        dynamicPropNames: ["color", "opacity", "transparent", "lineWidth", "secondaryColor"]
+    }
+);
+techniqueDescriptors["solid-line"] = solidLineTechniqueDescriptor;
 
 /**
  * Runtime representation of [[DashedLineStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface DashedLineTechnique extends DashedLineTechniqueParams {
+export interface DashedLineTechnique extends MakeTechniqueAttrs<DashedLineTechniqueParams> {
     name: "dashed-line";
 }
+
+export const dashedLineTechniqueDescriptor = mergeTechniqueDescriptor<DashedLineTechnique>(
+    baseTechniqueParamsDescriptor,
+    polygonalTechniqueDescriptor,
+    {
+        techniquePropNames: ["clipping"],
+        dynamicPropNames: ["color", "opacity", "transparent", "lineWidth", "dashSize", "gapSize"]
+    }
+);
+
+techniqueDescriptors["dashed-line"] = dashedLineTechniqueDescriptor;
 
 /**
  * Runtime representation of [[LineStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface LineTechnique extends LineTechniqueParams {
+export interface LineTechnique extends MakeTechniqueAttrs<LineTechniqueParams> {
     name: "line";
 }
+
+export const lineTechniqueDescriptor = mergeTechniqueDescriptor<LineTechnique>(
+    baseTechniqueParamsDescriptor,
+    {
+        // TODO, check, which are really dynamic !
+        dynamicPropNames: ["color", "lineWidth", "opacity", "transparent"]
+    }
+);
+
+techniqueDescriptors.line = lineTechniqueDescriptor;
 
 /**
  * Runtime representation of [[FillStyle]] as parsed by [[StyleSetEvaluator]].
  */
-export interface FillTechnique extends FillTechniqueParams {
+export interface FillTechnique extends MakeTechniqueAttrs<FillTechniqueParams> {
     name: "fill";
 }
 
-/**
- * Runtime representation of [[ExtrudedPolygonStyle]] as parsed by [[StyleSetEvaluator]].
- */
-export interface ExtrudedPolygonTechnique extends ExtrudedPolygonTechniqueParams {
-    name: "extruded-polygon";
-}
-
-/**
- * Runtime representation of [[TextStyle]] as parsed by [[StyleSetEvaluator]].
- */
-export interface TextTechnique extends TextTechniqueParams {
-    name: "text";
-}
+const fillTechniqueDescriptor = mergeTechniqueDescriptor<FillTechnique>(
+    baseTechniqueParamsDescriptor,
+    polygonalTechniqueDescriptor,
+    {
+        dynamicPropNames: ["color", "opacity", "transparent", "lineWidth"]
+    }
+);
+techniqueDescriptors.fill = fillTechniqueDescriptor;
 
 /**
  * Technique used to render a mesh geometry.
  */
-export interface StandardTechnique extends StandardTechniqueParams {
+export interface StandardTechnique extends MakeTechniqueAttrs<StandardTechniqueParams> {
     name: "standard";
 }
+const standardTechniqueDescriptor = mergeTechniqueDescriptor<StandardTechnique>(
+    baseTechniqueParamsDescriptor,
+    {
+        featurePropNames: ["color", "vertexColors"],
+        techniquePropNames: [
+            "map",
+            "mapProperties",
+            "normalMap",
+            "normalMapProperties",
+            "displacementMap",
+            "displacementMapProperties",
+            "roughnessMap",
+            "roughnessMapProperties",
+            "emissiveMap",
+            "emissiveMapProperties",
+            "bumpMap",
+            "bumpMapProperties",
+            "metalnessMap",
+            "metalnessMapProperties",
+            "alphaMap",
+            "alphaMapProperties"
+        ],
+        dynamicPropNames: [
+            "wireframe",
+            "roughness",
+            "metalness",
+            "alphaTest",
+            "depthTest",
+            "transparent",
+            "opacity",
+            "emissive",
+            "emissiveIntensity",
+            "refractionRatio"
+        ]
+    }
+);
+techniqueDescriptors.standard = standardTechniqueDescriptor;
 
-export interface ShaderTechnique extends ShaderTechniqueParams {
+/**
+ * Runtime representation of [[ExtrudedPolygonStyle]] as parsed by [[StyleSetEvaluator]].
+ */
+export interface ExtrudedPolygonTechnique
+    extends MakeTechniqueAttrs<ExtrudedPolygonTechniqueParams> {
+    name: "extruded-polygon";
+}
+
+const extrudedPolygonTechniqueDescriptor = mergeTechniqueDescriptor<ExtrudedPolygonTechnique>(
+    baseTechniqueParamsDescriptor,
+    standardTechniqueDescriptor,
+    {
+        featurePropNames: [
+            "height",
+            "minHeight",
+            "color",
+            "defaultColor",
+            "defaultHeight",
+            "constantHeight",
+            "boundaryWalls",
+            "footprint",
+            "maxSlope"
+        ],
+        techniquePropNames: ["enableDepthPrePass", "lineColorMix", "animateExtrusionDuration"],
+        dynamicPropNames: [
+            "animateExtrusion",
+            "opacity",
+            "transparent",
+            "lineWidth",
+            "lineColor",
+            "lineFadeNear",
+            "lineFadeFar"
+        ]
+    }
+);
+techniqueDescriptors["extruded-polygon"] = extrudedPolygonTechniqueDescriptor;
+/**
+ * Runtime representation of [[TextStyle]] as parsed by [[StyleSetEvaluator]].
+ */
+export interface TextTechnique extends MakeTechniqueAttrs<TextTechniqueParams> {
+    name: "text";
+}
+
+const textTechniqueDescriptor = mergeTechniqueDescriptor<TextTechnique>(
+    baseTechniqueParamsDescriptor,
+    {
+        featurePropNames: ["useAbbreviation", "useIsoCode"],
+        techniquePropNames: [
+            "minZoomLevel",
+            "maxZoomLevel",
+            "distanceScale",
+            "mayOverlap",
+            "reserveSpace",
+            "textFadeTime",
+            "xOffset",
+            "yOffset",
+            "style",
+            "fontName",
+            "fontStyle",
+            "fontVariant",
+            "rotation",
+            "tracking",
+            "leading",
+            "maxLines",
+            "lineWidth",
+            "canvasRotation",
+            "lineRotation",
+            "wrappingMode",
+            "hAlignment",
+            "vAlignment"
+        ],
+        dynamicPropNames: [
+            "backgroundColor",
+            "backgroundSize",
+            "backgroundOpacity",
+            "color",
+            "opacity",
+            "priority",
+            "size"
+        ]
+    }
+);
+techniqueDescriptors.text = textTechniqueDescriptor;
+
+export interface ShaderTechnique extends MakeTechniqueAttrs<ShaderTechniqueParams> {
     /**
      * Name of technique. Is used in the theme file.
      */
     name: "shader";
 }
 
+const shaderTechniqueDescriptor = mergeTechniqueDescriptor<ShaderTechnique>(
+    baseTechniqueParamsDescriptor,
+    {
+        featurePropNames: [],
+        techniquePropNames: ["primitive"],
+        dynamicPropNames: ["params"]
+    }
+);
+
+techniqueDescriptors.shader = shaderTechniqueDescriptor;
+
 /**
  * Technique used to render a terrain geometry with textures.
  */
-export interface TerrainTechnique extends TerrainTechniqueParams {
+export interface TerrainTechnique extends MakeTechniqueAttrs<TerrainTechniqueParams> {
     name: "terrain";
 }
 
@@ -169,6 +397,7 @@ export type Technique =
     | ExtrudedPolygonTechnique
     | ShaderTechnique
     | TextTechnique;
+
 /**
  * Additional params used for optimized usage of `Techniques`.
  */
@@ -180,7 +409,7 @@ export interface IndexedTechniqueParams {
     _index: number;
 
     /**
-     * Optimization: Unique [[Technique]] index within source [[StyleSet]].
+     * Optimization: Unique [[Technique]] index of [[Style]] from which technique was derived.
      * @hidden
      */
     _styleSetIndex: number;

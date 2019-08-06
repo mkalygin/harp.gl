@@ -1,4 +1,5 @@
 {
+    "$schema": "../../harp-datasource-protocol/theme.schema.json",
     "definitions": {
         "parkColor": {
             "type": "color",
@@ -18,6 +19,7 @@
             "technique": "extruded-polygon",
             "when": ["ref", "extrudedBuildingsCondition"],
             "attr": {
+                "height": ["number", ["get", "height"], 20],
                 "color": "#EDE7E1",
                 "opacity": 0.9,
                 "roughness": 1,

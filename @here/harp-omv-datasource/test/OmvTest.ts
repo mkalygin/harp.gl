@@ -15,7 +15,7 @@ import {
     OmvGeometryType
 } from "../index";
 
-import { MapEnv } from "@here/harp-datasource-protocol/index-decoder";
+import { FeatureEnv } from "@here/harp-datasource-protocol/index-decoder";
 import { assert } from "chai";
 
 /**
@@ -55,33 +55,33 @@ export class RoadFilter implements OmvFeatureFilter {
 }
 
 export class RoadFeatureFilter implements OmvFeatureModifier {
-    doProcessPointFeature(_layer: string, _env: MapEnv): boolean {
+    doProcessPointFeature(_layer: string, _env: FeatureEnv): boolean {
         return false;
     }
 
-    doProcessLineFeature(_layer: string, env: MapEnv): boolean {
-        const roadClass = env.lookup("class");
+    doProcessLineFeature(_layer: string, env: FeatureEnv): boolean {
+        const roadClass = env.env.lookup("class");
         const isRoad = roadClass !== undefined && roadClass.toString().indexOf("rail") < 0;
         return isRoad;
     }
 
-    doProcessPolygonFeature(_layer: string, _env: MapEnv): boolean {
+    doProcessPolygonFeature(_layer: string, _env: FeatureEnv): boolean {
         return false;
     }
 }
 
 export class RoadsToRailroads implements OmvFeatureModifier {
-    doProcessPointFeature(_layer: string, _env: MapEnv): boolean {
+    doProcessPointFeature(_layer: string, _env: FeatureEnv): boolean {
         return false;
     }
 
-    doProcessLineFeature(_layer: string, env: MapEnv): boolean {
+    doProcessLineFeature(_layer: string, env: FeatureEnv): boolean {
         // turn all roads into railroads
-        env.entries.class = "major_rail";
+        env.env.entries.class = "major_rail";
         return true;
     }
 
-    doProcessPolygonFeature(_layer: string, _env: MapEnv): boolean {
+    doProcessPolygonFeature(_layer: string, _env: FeatureEnv): boolean {
         return false;
     }
 }
