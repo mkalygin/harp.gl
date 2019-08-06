@@ -10,6 +10,7 @@
 import { assert } from "chai";
 import { MapEnv } from "../lib/Expr";
 import { StyleSetEvaluator } from "../lib/StyleSetEvaluator";
+import { isSolidLineTechnique, SolidLineTechnique } from "../lib/Techniques";
 import { StyleSet } from "../lib/Theme";
 
 describe("StyleSetEvaluator", function() {
@@ -17,7 +18,7 @@ describe("StyleSetEvaluator", function() {
         {
             description: "first",
             technique: "fill",
-            when: "kind == 'bar'",
+            when: ["==", ["get", "kind"], "bar"], // "kind == 'bar'",
             attr: { color: "yellow" }
         },
         {
@@ -157,5 +158,41 @@ describe("StyleSetEvaluator", function() {
         const parsedStyles = ev.styleSet;
         assert.equal(parsedStyles[0].renderOrder, 0);
         assert.equal(parsedStyles[1].renderOrder, 1001);
+    });
+    describe("dynamic technique atribute support", function() {
+        it("instantiates two techniques from one styleset basing on expression result", function() {
+            const testStyle: StyleSet = [
+                {
+                    technique: "solid-line",
+                    when: "kind == 'park'",
+                    attr: {
+                        lineWidth: ["get", "area"],
+                        color: "#00aa00",
+                        clipping: ["!", ["get", "clipping"]]
+                    }
+                }
+            ];
+            const ev = new StyleSetEvaluator(testStyle);
+            const r1 = ev.getMatchingTechniques(
+                new MapEnv({ kind: "park", area: 2, clipping: true })
+            );
+            const r2 = ev.getMatchingTechniques(
+                new MapEnv({ kind: "park", area: 3, clipping: false })
+            );
+
+            assert.notStrictEqual(r1, r2);
+
+            assert.equal(ev.techniques.length, 2);
+
+            assert.equal(r1.length, 1);
+            assert.isTrue(isSolidLineTechnique(r1[0]));
+            assert.equal((r1[0] as SolidLineTechnique).clipping, false);
+            assert.isUndefined((r1[0] as SolidLineTechnique).lineWidth);
+            assert.equal(ev.techniques.length, 2);
+
+            assert.isTrue(isSolidLineTechnique(r2[0]));
+            assert.equal((r2[0] as SolidLineTechnique).clipping, true);
+            assert.isUndefined((r2[0] as SolidLineTechnique).lineWidth);
+        });
     });
 });

@@ -10,7 +10,7 @@ import {
     FeatureGroupType,
     IndexedTechnique
 } from "@here/harp-datasource-protocol";
-import { MapEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
+import { FeatureEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
 import * as THREE from "three";
 
 import { webMercatorProjection } from "@here/harp-geoutils";
@@ -48,7 +48,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
     processPointFeature(
         layer: string,
         geometry: THREE.Vector3[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -87,7 +87,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
     processLineFeature(
         layer: string,
         geometry: ILineGeometry[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -149,7 +149,7 @@ export class OmvTileInfoEmitter implements IOmvEmitter {
     processPolygonFeature(
         layer: string,
         geometry: IPolygonGeometry[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MapEnv } from "@here/harp-datasource-protocol/index-decoder";
+import { FeatureEnv } from "@here/harp-datasource-protocol/index-decoder";
 import { Vector3 } from "three";
 
 /**
@@ -78,12 +78,7 @@ export interface IGeometryProcessor {
      * @param env The enviroment containing the properties of the geometry.
      * @param storageLevel The storage level of the data.
      */
-    processPointFeature(
-        layerName: string,
-        geometry: Vector3[],
-        env: MapEnv,
-        storageLevel: number
-    ): void;
+    processPointFeature(layerName: string, geometry: Vector3[], env: FeatureEnv): void;
 
     /**
      * Process a sequence of line features.
@@ -95,12 +90,7 @@ export interface IGeometryProcessor {
      * @param env The enviroment containing the properties of the geometry.
      * @param storageLevel The storage level of the data.
      */
-    processLineFeature(
-        layerName: string,
-        geometry: ILineGeometry[],
-        env: MapEnv,
-        storageLevel: number
-    ): void;
+    processLineFeature(layerName: string, geometry: ILineGeometry[], env: FeatureEnv): void;
 
     /**
      * Process a squence of polygon features.
@@ -113,10 +103,5 @@ export interface IGeometryProcessor {
      * @param env The enviroment containing the properties of the geometry.
      * @param storageLevel The storage level of the data.
      */
-    processPolygonFeature(
-        layerName: string,
-        geometry: IPolygonGeometry[],
-        env: MapEnv,
-        storageLevel: number
-    ): void;
+    processPolygonFeature(layerName: string, geometry: IPolygonGeometry[], env: FeatureEnv): void;
 }

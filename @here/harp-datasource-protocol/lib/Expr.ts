@@ -20,6 +20,12 @@ export interface ExprVisitor<Result, Context> {
     visitCallExpr(expr: CallExpr, context: Context): Result;
 }
 
+export type JsonExpr = unknown[];
+
+export function isJsonExpr(v: any): v is JsonExpr {
+    return Array.isArray(v) && v.length > 0 && typeof v[0] === "string";
+}
+
 /**
  * Abstract class defining a shape of a [[Theme]]'s expression
  */
@@ -311,8 +317,8 @@ export class CallExpr extends Expr {
  * @hidden
  */
 class ExprSerializer implements ExprVisitor<unknown, void> {
-    serialize(expr: Expr): unknown {
-        return expr.accept(this, undefined);
+    serialize(expr: Expr): JsonExpr {
+        return expr.accept(this, undefined) as JsonExpr;
     }
 
     visitBooleanLiteralExpr(expr: BooleanLiteralExpr, context: void): unknown {

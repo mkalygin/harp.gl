@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MapEnv, ValueMap } from "@here/harp-datasource-protocol/index-decoder";
+import { FeatureEnv, MapEnv, ValueMap } from "@here/harp-datasource-protocol/index-decoder";
 import { EarthConstants, GeoBox, TileKey } from "@here/harp-geoutils";
 import { ILogger } from "@here/harp-utils";
 import { Vector3 } from "three";
@@ -112,6 +112,7 @@ export class VTJsonDataAdapter implements OmvDataAdapter {
                 $geometryType: this.convertGeometryType(feature.type),
                 $level: tileKey.level
             });
+            const featureEnv = new FeatureEnv(env, tileKey.level);
 
             switch (feature.type) {
                 case VTJsonGeometryType.Point: {
@@ -125,12 +126,7 @@ export class VTJsonDataAdapter implements OmvDataAdapter {
                             0
                         );
 
-                        this.m_processor.processPointFeature(
-                            tile.layer,
-                            [position],
-                            env,
-                            tileKey.level
-                        );
+                        this.m_processor.processPointFeature(tile.layer, [position], featureEnv);
                     }
                     break;
                 }
@@ -146,7 +142,7 @@ export class VTJsonDataAdapter implements OmvDataAdapter {
                             line.positions.push(position);
                         }
 
-                        this.m_processor.processLineFeature(tile.layer, [line], env, tileKey.level);
+                        this.m_processor.processLineFeature(tile.layer, [line], featureEnv);
                     }
                     break;
                 }
@@ -201,12 +197,7 @@ export class VTJsonDataAdapter implements OmvDataAdapter {
                     }
 
                     if (polygonValid) {
-                        this.m_processor.processPolygonFeature(
-                            tile.layer,
-                            [polygon],
-                            env,
-                            tileKey.level
-                        );
+                        this.m_processor.processPolygonFeature(tile.layer, [polygon], featureEnv);
                     }
                     break;
                 }

@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Env, MapEnv, Value, ValueMap } from "@here/harp-datasource-protocol/index-decoder";
+import {
+    Env,
+    FeatureEnv,
+    MapEnv,
+    Value,
+    ValueMap
+} from "@here/harp-datasource-protocol/index-decoder";
 import { EarthConstants, GeoBox, TileKey } from "@here/harp-geoutils";
 import { ILogger } from "@here/harp-utils";
 import * as Long from "long";
@@ -343,7 +349,7 @@ function createFeatureEnv(
     storageLevel: number,
     logger?: ILogger,
     parent?: Env
-): MapEnv {
+): FeatureEnv {
     const attributes: ValueMap = {
         $layer: layer.name,
         $level: storageLevel,
@@ -357,7 +363,7 @@ function createFeatureEnv(
 
     readAttributes(layer, feature, attributes);
 
-    return new MapEnv(attributes, parent);
+    return new FeatureEnv(new MapEnv(attributes, parent), storageLevel);
 }
 
 function asGeometryType(feature: com.mapbox.pb.Tile.IFeature | undefined): OmvGeometryType {
@@ -507,7 +513,7 @@ export class OmvProtobufDataAdapter implements OmvDataAdapter, OmvVisitor {
 
         const env = createFeatureEnv(this.m_layer, feature, "point", storageLevel, this.m_logger);
 
-        this.m_processor.processPointFeature(layerName, geometry, env, storageLevel);
+        this.m_processor.processPointFeature(layerName, geometry, env);
     }
 
     /**
@@ -556,7 +562,7 @@ export class OmvProtobufDataAdapter implements OmvDataAdapter, OmvVisitor {
 
         const env = createFeatureEnv(this.m_layer, feature, "line", storageLevel, this.m_logger);
 
-        this.m_processor.processLineFeature(layerName, geometry, env, storageLevel);
+        this.m_processor.processLineFeature(layerName, geometry, env);
     }
 
     /**
@@ -615,6 +621,6 @@ export class OmvProtobufDataAdapter implements OmvDataAdapter, OmvVisitor {
 
         const env = createFeatureEnv(this.m_layer, feature, "polygon", storageLevel, this.m_logger);
 
-        this.m_processor.processPolygonFeature(layerName, geometry, env, storageLevel);
+        this.m_processor.processPolygonFeature(layerName, geometry, env);
     }
 }

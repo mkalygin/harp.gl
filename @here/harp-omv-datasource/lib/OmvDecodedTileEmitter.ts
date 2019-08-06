@@ -12,7 +12,6 @@ import {
     FillTechnique,
     Geometry,
     GeometryType,
-    getPropertyValue,
     Group,
     IndexedTechnique,
     InterleavedBufferAttribute,
@@ -29,6 +28,7 @@ import {
     LineMarkerTechnique,
     PoiGeometry,
     PoiTechnique,
+    StyleColor,
     Technique,
     TextGeometry,
     TextPathGeometry,
@@ -39,14 +39,14 @@ import {
 import {
     addExtrudedWalls,
     addPolygonEdges,
+    FeatureEnv,
     IMeshBuffers,
-    MapEnv,
     StyleSetEvaluator,
     Value
 } from "@here/harp-datasource-protocol/index-decoder";
 import { LineGroup } from "@here/harp-lines/lib/Lines";
 import { triangulateLine } from "@here/harp-lines/lib/TriangulateLines";
-import { assert, LoggerManager, Math2D } from "@here/harp-utils";
+import { assert, getOptionValue, LoggerManager, Math2D } from "@here/harp-utils";
 import earcut from "earcut";
 import * as THREE from "three";
 
@@ -61,7 +61,7 @@ import { ILineGeometry, IPolygonGeometry } from "./IGeometryProcessor";
 import { LinesGeometry } from "./OmvDataSource";
 import { IOmvEmitter, OmvDecoder, Ring } from "./OmvDecoder";
 
-// tslint:disable-next-line: max-line-length
+// tslint:disable-next-line:max-line-length
 import { SphericalGeometrySubdivisionModifier } from "@here/harp-geometry/lib/SphericalGeometrySubdivisionModifier";
 
 const logger = LoggerManager.instance.create("OmvDecodedTileEmitter");
@@ -144,6 +144,8 @@ export enum LineType {
     Complex
 }
 
+const tmpColor = new THREE.Color();
+
 export class OmvDecodedTileEmitter implements IOmvEmitter {
     // mapping from style index to mesh buffers
     private readonly m_meshBuffers = new Map<number, MeshBuffers>();
@@ -186,7 +188,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
     processPointFeature(
         layer: string,
         geometry: THREE.Vector3[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -214,11 +216,11 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
 
             if (wantsPoi) {
                 const poiTechnique = technique as PoiTechnique;
-                imageTexture = poiTechnique.imageTexture;
+                imageTexture = env.evaluate(poiTechnique.imageTexture);
 
                 // TODO: Move to decoder independent parts of code.
-                if (typeof poiTechnique.poiName === "string") {
-                    imageTexture = poiTechnique.poiName;
+                if (poiTechnique.poiName !== undefined) {
+                    imageTexture = env.evaluate(poiTechnique.poiName);
                 } else if (typeof poiTechnique.poiNameField === "string") {
                     const poiNameFieldValue = env.lookup(poiTechnique.poiNameField) as string;
                     imageTexture = poiNameFieldValue;
@@ -288,7 +290,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
     processLineFeature(
         layer: string,
         geometry: ILineGeometry[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -444,7 +446,11 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
                     }
                 } else {
                     const lineMarkerTechnique = technique as LineMarkerTechnique;
-                    let imageTexture = lineMarkerTechnique.imageTexture;
+
+                    let imageTexture = env.evaluate(lineMarkerTechnique.imageTexture);
+
+                    // TODO: `imageTextureField` and `imageTexturePrefix` and `imageTexturePostfix`
+                    // are now deprecated
 
                     // TODO: Move to decoder independent parts of code.
                     if (typeof lineMarkerTechnique.imageTextureField === "string") {
@@ -493,17 +499,15 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
                 } = meshBuffers;
                 const start = indices.length;
 
-                const lineWidth = getPropertyValue(
-                    technique.lineWidth,
-                    this.m_decodeInfo.tileKey.level
-                );
+                const lineWidth = env.evaluate<number>(technique.lineWidth);
 
                 if (lineWidth === undefined) {
                     continue;
                 }
 
-                const addCircle =
-                    wantCircle && (technique.caps === undefined || technique.caps === "Circle");
+                const techniqueCaps = env.evaluate<string>(technique.caps, "Circle");
+
+                const addCircle = wantCircle && techniqueCaps === "Circle";
 
                 lines.forEach(aLine => {
                     triangulateLine(aLine, lineWidth, positions, indices, addCircle);
@@ -538,7 +542,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
     processPolygonFeature(
         layer: string,
         geometry: IPolygonGeometry[],
-        env: MapEnv,
+        env: FeatureEnv,
         techniques: IndexedTechnique[],
         featureId: number | undefined
     ): void {
@@ -700,7 +704,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
         this.processLines(this.m_dashedLines);
 
         const decodedTile: DecodedTile = {
-            techniques: this.m_styleSetEvaluator.techniques,
+            techniques: this.m_styleSetEvaluator.decodedTechniques,
             geometries: this.m_geometries,
             decodeTime: undefined
         };
@@ -721,17 +725,16 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
 
     private applyLineTechnique(
         linesGeometry: LinesGeometry[],
-        technique: Technique,
+        technique: IndexedTechnique,
         techniqueIndex: number,
         gatherFeatureIds: boolean,
         lineType = LineType.Complex,
         featureId: number | undefined,
         lines: number[][],
-        env: MapEnv
+        env: FeatureEnv
     ): void {
-        const renderOrderOffset = technique.renderOrderBiasProperty
-            ? env.lookup(technique.renderOrderBiasProperty)
-            : 0;
+        const renderOrderOffset = env.evaluate<number>(technique.renderOrderOffset, 0);
+
         let lineGroup: LineGroup;
         const lineGroupGeometries = linesGeometry.find(aLine => {
             return (
@@ -748,10 +751,11 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
                 lines: lineGroup
             };
 
-            if (gatherFeatureIds) {
+            const techniqueTransient = env.evaluate<boolean>(technique.transient, false);
+            if (!techniqueTransient && gatherFeatureIds) {
                 // if this technique is transient, do not save the featureIds with the geometry
-                aLine.featureIds = technique.transient === true ? undefined : [featureId];
-                aLine.featureStarts = technique.transient === true ? undefined : [0];
+                aLine.featureIds = [featureId];
+                aLine.featureStarts = [0];
             }
 
             linesGeometry.push(aLine);
@@ -779,7 +783,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
         technique: Technique,
         techniqueIndex: number,
         featureId: number | undefined,
-        env: MapEnv
+        env: FeatureEnv
     ): void {
         const isExtruded = isExtrudedPolygonTechnique(technique);
 
@@ -795,18 +799,33 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
         const isFilled = isFillTechnique(technique);
         const texCoordType = textureCoordinateType(technique);
 
-        // Get the height values for the footprint and extrusion.
-        const currentHeight = env.lookup("height") as number;
-        const currentMinHeight = env.lookup("min_height") as number;
-        const defaultHeight = extrudedPolygonTechnique.defaultHeight;
-        const constantHeight = extrudedPolygonTechnique.constantHeight;
-        const minHeight = currentMinHeight !== undefined && !isFilled ? currentMinHeight : 0;
-        const height =
-            currentHeight !== undefined
-                ? currentHeight
-                : defaultHeight !== undefined
-                ? defaultHeight
-                : 0;
+        let height = env.evaluate<number>(extrudedPolygonTechnique.height);
+
+        let minHeight = env.evaluate<number>(extrudedPolygonTechnique.minHeight);
+
+        if (height === undefined) {
+            // Get the height values for the footprint and extrusion.
+            const featureHeight = env.lookup("height") as number;
+            const styleSetDefaultHeight = env.evaluate<number>(
+                extrudedPolygonTechnique.defaultHeight
+            );
+            height =
+                featureHeight !== undefined
+                    ? featureHeight
+                    : styleSetDefaultHeight !== undefined
+                    ? styleSetDefaultHeight
+                    : 0;
+        }
+
+        if (minHeight === undefined) {
+            const featureMinHeight = env.lookup("min_height") as number;
+            minHeight = featureMinHeight !== undefined && !isFilled ? featureMinHeight : 0;
+        }
+
+        const styleSetConstantHeight = getOptionValue(
+            extrudedPolygonTechnique.constantHeight,
+            false
+        );
 
         this.m_decodeInfo.tileBounds.getCenter(tempTileOrigin);
 
@@ -968,7 +987,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
                     tempVertNormal.set(0, 0, 1);
                     for (let i = 0; i < vertices.length; i += stride) {
                         let scaleFactor = 1.0;
-                        if (isExtruded && constantHeight !== true) {
+                        if (isExtruded && styleSetConstantHeight !== true) {
                             tempVertOrigin.set(
                                 tempTileOrigin.x + vertices[i],
                                 tempTileOrigin.y + vertices[i + 1],
@@ -1038,20 +1057,33 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
                 }
             }
 
-            if (isExtrudedPolygonTechnique(technique) && technique.vertexColors === true) {
-                const positionCount = (positions.length - basePosition) / 3;
-                const color = new THREE.Color(
-                    technique.color !== undefined
-                        ? getPropertyValue(technique.color, this.m_decodeInfo.tileKey.level)
-                        : this.isColorStringValid(env.lookup("color") as string)
-                        ? (env.lookup("color") as string)
-                        : technique.defaultColor !== undefined
-                        ? getPropertyValue(technique.defaultColor, this.m_decodeInfo.tileKey.level)
-                        : 0x000000
-                );
+            if (isExtrudedPolygonTechnique(technique)) {
+                const useVertextColors = getOptionValue(technique.vertexColors, false);
 
-                for (let i = 0; i < positionCount; ++i) {
-                    colors.push(color.r, color.g, color.b);
+                if (useVertextColors) {
+                    const positionCount = (positions.length - basePosition) / 3;
+                    let colorValue = env.evaluate<StyleColor>(technique.color);
+                    if (colorValue === undefined) {
+                        const featureColor = env.lookup("color");
+                        if (this.isColorStringValid(featureColor)) {
+                            colorValue = String(featureColor);
+                        }
+                    }
+                    if (colorValue === undefined) {
+                        colorValue = env.evaluate<number | string>(
+                            technique.defaultColor,
+                            0x000000
+                        );
+                    }
+
+                    if (colorValue === undefined) {
+                        colorValue = 0x000000;
+                    }
+                    tmpColor.set(colorValue as any);
+
+                    for (let i = 0; i < positionCount; ++i) {
+                        colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
+                    }
                 }
             }
 
@@ -1316,7 +1348,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
         return buffers;
     }
 
-    private processFeatureCommon(env: MapEnv) {
+    private processFeatureCommon(env: FeatureEnv) {
         const source = env.lookup("source");
         if (typeof source === "string" && source !== "") {
             if (!this.m_sources.includes(source)) {
@@ -1325,7 +1357,7 @@ export class OmvDecodedTileEmitter implements IOmvEmitter {
         }
     }
 
-    private isColorStringValid(color: Value): boolean {
+    private isColorStringValid(color: Value): color is string {
         return typeof color === "string" && color.length > 0;
     }
 }
