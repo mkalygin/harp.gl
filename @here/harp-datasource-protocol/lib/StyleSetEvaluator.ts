@@ -6,6 +6,7 @@
 
 import { LoggerManager } from "@here/harp-utils";
 
+import { DecodedTechnique, makeDecodedTechnique } from "./DecodedTechnique";
 import { Env, Expr, isJsonExpr, JsonExpr, MapEnv, Value } from "./Expr";
 import { ExprPool } from "./ExprPool";
 import {
@@ -196,7 +197,7 @@ export class StyleSetEvaluator {
     /**
      * Get the (current) array of techniques that have been created during decoding.
      */
-    get decodedTechniques(): Technique[] {
+    get decodedTechniques(): DecodedTechnique[] {
         return this.m_techniques.map(makeDecodedTechnique);
     }
 
@@ -274,11 +275,12 @@ export class StyleSetEvaluator {
                             return JSON.stringify(attrValue);
                         }
                     })
-                    .join("\0");
-                const key = makeCacheKey(style._styleSetIndex!, dynamicAttrKey);
+                    .join("|");
+                const key = `${style._styleSetIndex}:${dynamicAttrKey}`;
                 let technique = style._dynamicTechniques!.get(key);
                 if (technique === undefined) {
                     technique = this.createTechnique(style, dynamicAttributes);
+                    technique._key = key;
                     style._dynamicTechniques!.set(key, technique);
                 }
                 result.push(technique);
@@ -289,6 +291,7 @@ export class StyleSetEvaluator {
                         style,
                         []
                     ) as IndexedTechnique;
+                    technique._key = "";
                 }
                 result.push(technique as IndexedTechnique);
             }
@@ -335,6 +338,8 @@ export class StyleSetEvaluator {
                         dynamicTechniqueAttributes.push([attrName, expr]);
                         break;
                     case TechniqueAttrType.DynamicMaterial:
+                        dynamicForwardedAttributes.push([attrName, expr]);
+                        break;
                     default:
                         /* no support for dynamic attributes after decoding */
                         break;
@@ -435,28 +440,4 @@ export class StyleSetEvaluator {
         this.m_techniques.push(technique as IndexedTechnique);
         return technique as IndexedTechnique;
     }
-}
-
-function makeCacheKey(...elements: Array<string | number>): string {
-    return elements.map(String).join(":");
-}
-
-/**
- * Create transferable representation of dynamic technique.
- *
- * As for now, we remove all `Expr` as they are not supported on other side.
- */
-export function makeDecodedTechnique(technique: IndexedTechnique): Technique {
-    const result: Partial<Technique> = {};
-    for (const attrName in technique) {
-        if (!technique.hasOwnProperty(attrName)) {
-            continue;
-        }
-        const attrValue: any = (technique as any)[attrName];
-        if (attrValue instanceof Expr) {
-            continue;
-        }
-        (result as any)[attrName] = attrValue;
-    }
-    return (result as any) as Technique;
 }

@@ -25,13 +25,13 @@ import {
     TextureCoordinateType
 } from "./TechniqueParams";
 
-import { Expr, JsonExpr } from "./Expr";
-import { InterpolatedProperty, InterpolatedPropertyDefinition } from "./InterpolatedPropertyDefs";
+import { MakeTechniqueAttrs } from "./DynamicTechniqueAttr";
 import {
     mergeTechniqueDescriptor,
     TechniqueDescriptor,
     TechniqueDescriptorRegistry
 } from "./TechniqueDescriptor";
+
 /**
  * Names of the supported texture properties.
  */
@@ -45,25 +45,6 @@ export const TEXTURE_PROPERTY_KEYS = [
     "metalnessMap",
     "bumpMap"
 ];
-
-// TODO: Can be removed, when all when interpolators are implemented as [[Expr]]s
-export type RemoveInterpolatedPropDef<T> = (T | InterpolatedPropertyDefinition<any>) extends T
-    ? Exclude<T, InterpolatedPropertyDefinition<any>>
-    : T;
-export type RemoveJsonExpr<T> = (T | JsonExpr) extends T ? Exclude<T, JsonExpr> : T;
-
-/**
- * Make runtime representation of technique attributes from JSON-compatible typings.
- *
- * Translates
- *  - InterpolatedPropertyDefinition -> InterpolatedProperty
- *  - JsonExpr -> Expr
- */
-export type MakeTechniqueAttrs<T> = {
-    [P in keyof T]: (T[P] | JsonExpr) extends T[P]
-        ? RemoveInterpolatedPropDef<RemoveJsonExpr<T[P]>> | Expr | InterpolatedProperty<number>
-        : T[P];
-};
 
 export const techniqueDescriptors: TechniqueDescriptorRegistry = {};
 
@@ -407,6 +388,13 @@ export interface IndexedTechniqueParams {
      * @hidden
      */
     _index: number;
+
+    /**
+     * Optimization: Unique technique key derived from all dynamic expressions that were
+     * input to this particular technique instance.
+     * @hidden
+     */
+    _key: string;
 
     /**
      * Optimization: Unique [[Technique]] index of [[Style]] from which technique was derived.

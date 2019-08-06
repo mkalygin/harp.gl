@@ -4,12 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { applyMixinsWithoutProperties, chainCallbacks } from "@here/harp-utils";
+import { applyMixinsWithoutProperties, chainCallbacks, getOptionValue } from "@here/harp-utils";
 import { AnimatedExtrusionTileHandler } from "../../harp-mapview/lib/AnimatedExtrusionHandler";
 import { insertShaderInclude } from "./Utils";
 
 import * as THREE from "three";
 
+// TODO: WTF ?
+import {
+    DynamicTechniqueAttr,
+    IDynamicTechniqueHandler,
+    SceneStateEnv
+} from "@here/harp-datasource-protocol";
+import { Expr } from "@here/harp-datasource-protocol/lib/Expr";
+import {
+    ExprEvaluator,
+    ExprEvaluatorContext
+} from "@here/harp-datasource-protocol/lib/ExprEvaluator";
 import extrusionShaderChunk from "./ShaderChunks/ExtrusionChunks";
 import fadingShaderChunk from "./ShaderChunks/FadingChunks";
 
@@ -64,20 +75,6 @@ interface UnifomType {
  */
 interface UniformsType {
     [index: string]: UnifomType;
-}
-
-/**
- * Translates a linear distance value [0..1], where 1 is the distance to the far plane, into
- * [0..cameraFar].
- *
- * Copy from MapViewUtils, since it cannot be accessed here because of circular dependencies.
- *
- * @param distance Distance from the camera (range: [0, 1]).
- * @param camera Camera applying the perspective projection.
- */
-function cameraToWorldDistance(distance: number, camera: THREE.Camera): number {
-    const perspCam = camera as THREE.PerspectiveCamera;
-    return distance * perspCam.far;
 }
 
 /**
@@ -241,17 +238,15 @@ export namespace FadingFeature {
      * @param additionalCallback If defined, this function will be called before the function will
      *          return.
      */
-    export function addRenderHelper(
+    export function addTransparencyHack(
         object: THREE.Object3D,
-        fadeNear: number | undefined,
-        fadeFar: number | undefined,
         forceMaterialToTransparent: boolean,
-        updateUniforms: boolean,
-        additionalCallback?: (
-            renderer: THREE.WebGLRenderer,
-            material: THREE.Material & FadingFeature
-        ) => void
+        updateUniforms: boolean
     ) {
+        if (!forceMaterialToTransparent && !updateUniforms) {
+            return;
+        }
+
         // tslint:disable-next-line:no-unused-variable
         object.onBeforeRender = chainCallbacks(
             object.onBeforeRender,
@@ -269,16 +264,6 @@ export namespace FadingFeature {
                 }
                 const fadingMaterial = material as FadingFeature;
 
-                fadingMaterial.fadeNear =
-                    fadeNear === undefined
-                        ? FadingFeature.DEFAULT_FADE_NEAR
-                        : cameraToWorldDistance(fadeNear, camera);
-
-                fadingMaterial.fadeFar =
-                    fadeFar === undefined
-                        ? FadingFeature.DEFAULT_FADE_FAR
-                        : cameraToWorldDistance(fadeFar, camera);
-
                 if (updateUniforms) {
                     const properties = renderer.properties.get(material);
 
@@ -286,24 +271,90 @@ export namespace FadingFeature {
                         properties.shader !== undefined &&
                         properties.shader.uniforms.fadeNear !== undefined
                     ) {
+                        // TODO
+                        // Is this really needed ?
+                        // We update material before render!
                         properties.shader.uniforms.fadeNear.value = fadingMaterial.fadeNear;
                         properties.shader.uniforms.fadeFar.value = fadingMaterial.fadeFar;
                         fadingMaterial.uniformsNeedUpdate = true;
                     }
                 }
-
-                if (additionalCallback !== undefined) {
-                    additionalCallback(renderer, material);
-                }
             }
         );
 
         if (forceMaterialToTransparent) {
-            object.onAfterRender = (renderer, scene, camera, geom, material) => {
-                material.transparent = false;
-            };
+            // tslint:disable-next-line:no-unused-variable
+            object.onAfterRender = chainCallbacks(
+                object.onAfterRender,
+                (renderer, scene, camera, geom, material, group) => {
+                    material.transparent = false;
+                }
+            );
         }
     }
+
+    export function preprocessFadingTechniqueAttrs(
+        material: FadingFeature,
+        fadeFar: number | DynamicTechniqueAttr<number> | undefined,
+        fadeNear: number | DynamicTechniqueAttr<number> | undefined,
+        dynamicTechniqueHandler: IDynamicTechniqueHandler
+    ): void {
+        fadeNear = getOptionValue(fadeFar, FadingFeature.DEFAULT_FADE_FAR);
+        fadeFar = getOptionValue(fadeNear, FadingFeature.DEFAULT_FADE_NEAR);
+
+        if (fadeFar !== 0) {
+            const fadeFarExpr = dynamicTechniqueHandler.getSharedExpr([
+                "cameraToWorldDistance",
+                fadeFar
+            ]);
+
+            dynamicTechniqueHandler.addDynamicAttrHandler<number>(fadeFarExpr, resolvedFadeFar => {
+                material.fadeFar = resolvedFadeFar;
+                material.uniformsNeedUpdate = true;
+            });
+        }
+
+        if (fadeNear === 0) {
+            const fadeNearExpr = dynamicTechniqueHandler.getSharedExpr([
+                "cameraToWorldDistance",
+                fadeNear
+            ]);
+
+            dynamicTechniqueHandler.addDynamicAttrHandler<number>(
+                fadeNearExpr,
+                resolvedFadeNear => {
+                    material.fadeNear = resolvedFadeNear;
+                    material.uniformsNeedUpdate = true;
+                }
+            );
+        }
+    }
+
+    /**
+     * Translates a linear distance value [0..1], where 1 is the distance to the far plane, into
+     * [0..cameraFar].
+     *
+     * Copy from MapViewUtils, since it cannot be accessed here because of circular dependencies.
+     *
+     * @param distance Distance from the camera (range: [0, 1]).
+     * @param camera Camera applying the perspective projection.
+     */
+    function cameraToWorldDistance(distance: number, cameraFar: number): number {
+        return distance * cameraFar;
+    }
+
+    ExprEvaluator.defineOperator(
+        "cameraToWorldDistance",
+        (context: ExprEvaluatorContext, args: Expr[]) => {
+            const sceneEnv = context.env as SceneStateEnv;
+
+            let fadingParam = context.evaluate(args[0]);
+            if (fadingParam === undefined || typeof fadingParam !== "number") {
+                fadingParam = FadingFeature.DEFAULT_FADE_FAR;
+            }
+            return cameraToWorldDistance(fadingParam, sceneEnv.sceneState.cameraFar);
+        }
+    );
 }
 
 /**

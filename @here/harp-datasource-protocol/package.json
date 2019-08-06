@@ -26,7 +26,6 @@
     "dependencies": {
         "@here/harp-geometry": "^0.2.4",
         "@here/harp-geoutils": "^0.4.3",
-        "@here/harp-lines": "^0.3.3",
         "@here/harp-utils": "^0.2.7"
     },
     "devDependencies": {

@@ -160,18 +160,19 @@ describe("StyleSetEvaluator", function() {
         assert.equal(parsedStyles[1].renderOrder, 1001);
     });
     describe("dynamic technique atribute support", function() {
-        it("instantiates two techniques from one styleset basing on expression result", function() {
-            const testStyle: StyleSet = [
-                {
-                    technique: "solid-line",
-                    when: "kind == 'park'",
-                    attr: {
-                        lineWidth: ["get", "area"],
-                        color: "#00aa00",
-                        clipping: ["!", ["get", "clipping"]]
-                    }
+        const testStyle: StyleSet = [
+            {
+                technique: "solid-line",
+                when: "kind == 'park'",
+                attr: {
+                    lineWidth: ["get", "area"],
+                    color: "#00aa00",
+                    secondaryRenderOrder: ["get", "area"],
+                    clipping: ["!", ["get", "clipping"]]
                 }
-            ];
+            }
+        ];
+        it("instantiates two techniques from one styleset basing on expression result", function() {
             const ev = new StyleSetEvaluator(testStyle);
             const r1 = ev.getMatchingTechniques(
                 new MapEnv({ kind: "park", area: 2, clipping: true })
@@ -193,6 +194,45 @@ describe("StyleSetEvaluator", function() {
             assert.isTrue(isSolidLineTechnique(r2[0]));
             assert.equal((r2[0] as SolidLineTechnique).clipping, true);
             assert.isUndefined((r2[0] as SolidLineTechnique).lineWidth);
+        });
+        it("generates stable technique cache key", function() {
+            const techniquesTileA = (() => {
+                const ev = new StyleSetEvaluator(testStyle);
+                ev.getMatchingTechniques(new MapEnv({ kind: "park" }));
+                ev.getMatchingTechniques(new MapEnv({ kind: "park", area: 2 }));
+                ev.getMatchingTechniques(new MapEnv({ kind: "park", area: 3 }));
+                return ev.decodedTechniques;
+            })();
+
+            assert.equal(techniquesTileA.length, 3);
+
+            const techniquesTileB = (() => {
+                const ev = new StyleSetEvaluator(testStyle);
+                ev.getMatchingTechniques(new MapEnv({ kind: "park", area: 3 }));
+                return ev.decodedTechniques;
+            })();
+
+            assert.equal(techniquesTileB.length, 1);
+
+            const techniquesTileC = (() => {
+                const ev = new StyleSetEvaluator(testStyle);
+                ev.getMatchingTechniques(new MapEnv({ kind: "park", area: 2 }));
+                ev.getMatchingTechniques(new MapEnv({ kind: "park" }));
+                return ev.decodedTechniques;
+            })();
+
+            assert.equal(techniquesTileC.length, 2);
+
+            // delete _index from result techniques, because it may differ
+            [...techniquesTileA, ...techniquesTileB, ...techniquesTileC].forEach(t => {
+                delete t._index;
+            });
+
+            // Now, respective techniques should have same cache key irrespectively to from
+            // which tile they come.
+            assert.deepEqual(techniquesTileA[1], techniquesTileC[0]);
+            assert.deepEqual(techniquesTileA[2], techniquesTileB[0]);
+            assert.deepEqual(techniquesTileA[0], techniquesTileC[1]);
         });
     });
 });

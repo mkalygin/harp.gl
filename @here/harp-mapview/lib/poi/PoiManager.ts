@@ -7,7 +7,6 @@
 import {
     composeTechniqueTextureName,
     DecodedTile,
-    getPropertyValue,
     ImageTexture,
     isLineMarkerTechnique,
     isPoiTechnique,
@@ -489,24 +488,18 @@ export class PoiManager {
         z: number | undefined,
         userData?: {}
     ): TextElement {
-        const priority = technique.priority !== undefined ? technique.priority : 0;
+        const dynamicTechniqueHandler = tile.dynamicTechniqueHandler;
+        const priority = dynamicTechniqueHandler.evaluateDynamicAttr(technique.priority, 0);
         const positions = Array.isArray(x) ? (x as THREE.Vector3[]) : new THREE.Vector3(x, y, z);
-        const displayZoomLevel = this.mapView.zoomLevel;
-        const fadeNear =
-            technique.fadeNear !== undefined
-                ? getPropertyValue(technique.fadeNear, displayZoomLevel)
-                : technique.fadeNear;
-        const fadeFar =
-            technique.fadeFar !== undefined
-                ? getPropertyValue(technique.fadeFar, displayZoomLevel)
-                : technique.fadeFar;
+        const fadeNear = dynamicTechniqueHandler.evaluateDynamicAttr(technique.fadeNear);
+        const fadeFar = dynamicTechniqueHandler.evaluateDynamicAttr(technique.fadeFar);
 
         const textElement: TextElement = new TextElement(
             ContextualArabicConverter.instance.convert(text),
             positions,
-            this.getRenderStyle(tile.dataSource.name, technique),
-            this.getLayoutStyle(tile.dataSource.name, technique),
-            getPropertyValue(priority, displayZoomLevel),
+            this.getRenderStyle(tile, technique),
+            this.getLayoutStyle(tile, technique),
+            priority,
             technique.xOffset !== undefined ? technique.xOffset : 0.0,
             technique.yOffset !== undefined ? technique.yOffset : 0.0,
             featureId,
@@ -582,9 +575,10 @@ export class PoiManager {
     }
 
     private getRenderStyle(
-        dataSourceName: string,
+        tile: Tile,
         technique: PoiTechnique | LineMarkerTechnique
     ): TextRenderStyle {
+        const dataSourceName = tile.dataSource.name;
         const cacheId = computeStyleCacheId(
             dataSourceName,
             technique,
@@ -592,39 +586,31 @@ export class PoiManager {
         );
         let renderStyle = this.mapView.textRenderStyleCache.get(cacheId);
         if (renderStyle === undefined) {
+            const dynamicTechniqueHandler = tile.dynamicTechniqueHandler;
             const defaultRenderParams = this.mapView.textElementsRenderer!.defaultStyle
                 .renderParams;
 
-            if (technique.color !== undefined) {
-                const hexColor = getPropertyValue(
-                    technique.color,
-                    Math.floor(this.mapView.zoomLevel)
-                );
-                this.m_colorMap.set(cacheId, ColorCache.instance.getColor(hexColor));
+            const color = dynamicTechniqueHandler.evaluateDynamicAttr(technique.color);
+            if (color !== undefined) {
+                this.m_colorMap.set(cacheId, ColorCache.instance.getColor(color));
             }
-            if (technique.backgroundColor !== undefined) {
-                const hexBgColor = getPropertyValue(
-                    technique.backgroundColor,
-                    Math.floor(this.mapView.zoomLevel)
-                );
-                this.m_colorMap.set(cacheId + "_bg", ColorCache.instance.getColor(hexBgColor));
+            const bgColor = dynamicTechniqueHandler.evaluateDynamicAttr(technique.backgroundColor);
+            if (bgColor) {
+                this.m_colorMap.set(cacheId + "_bg", ColorCache.instance.getColor(bgColor));
             }
 
             const renderParams = {
                 fontName: getOptionValue(technique.fontName, defaultRenderParams.fontName),
                 fontSize: {
                     unit: FontUnit.Pixel,
-                    size:
-                        technique.size !== undefined
-                            ? getPropertyValue(technique.size, Math.floor(this.mapView.zoomLevel))
-                            : defaultRenderParams.fontSize!.size,
-                    backgroundSize:
-                        technique.backgroundSize !== undefined
-                            ? getPropertyValue(
-                                  technique.backgroundSize,
-                                  Math.floor(this.mapView.zoomLevel)
-                              )
-                            : defaultRenderParams.fontSize!.backgroundSize
+                    size: dynamicTechniqueHandler.evaluateDynamicAttr(
+                        technique.size,
+                        defaultRenderParams.fontSize!.size
+                    ),
+                    backgroundSize: dynamicTechniqueHandler.evaluateDynamicAttr(
+                        technique.backgroundSize,
+                        defaultRenderParams.fontSize!.backgroundSize
+                    )
                 },
                 fontStyle:
                     technique.fontStyle === "Regular" ||
@@ -645,17 +631,14 @@ export class PoiManager {
                     this.m_colorMap.get(cacheId + "_bg"),
                     defaultRenderParams.backgroundColor
                 ),
-                opacity:
-                    technique.opacity !== undefined
-                        ? getPropertyValue(technique.opacity, Math.floor(this.mapView.zoomLevel))
-                        : defaultRenderParams.opacity,
-                backgroundOpacity:
-                    technique.backgroundOpacity !== undefined
-                        ? getPropertyValue(
-                              technique.backgroundOpacity,
-                              Math.floor(this.mapView.zoomLevel)
-                          )
-                        : defaultRenderParams.backgroundOpacity
+                opacity: dynamicTechniqueHandler.evaluateDynamicAttr(
+                    technique.opacity,
+                    defaultRenderParams.opacity
+                ),
+                backgroundOpacity: dynamicTechniqueHandler.evaluateDynamicAttr(
+                    technique.backgroundOpacity,
+                    defaultRenderParams.backgroundOpacity
+                )
             };
 
             const themeRenderParams =
@@ -674,9 +657,10 @@ export class PoiManager {
     }
 
     private getLayoutStyle(
-        dataSourceName: string,
+        tile: Tile,
         technique: PoiTechnique | LineMarkerTechnique
     ): TextLayoutStyle {
+        const dataSourceName = tile.dataSource.name;
         const cacheId = computeStyleCacheId(
             dataSourceName,
             technique,
