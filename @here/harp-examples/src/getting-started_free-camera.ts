@@ -154,7 +154,7 @@ export namespace FreeCameraAppDebuggingToolExample {
                 this.mapView.camera.position.add(cameraRelativeToEye.position);
                 // Make sure that pitch limit contraint is preserved
                 const ypr = MapViewUtils.extractYawPitchRoll(
-                    cameraRelativeToEye.quaternion,
+                    cameraRelativeToEye,
                     this.mapView.projection.type
                 );
                 ypr.pitch = Math.max(

@@ -180,7 +180,8 @@ const CONTEXT_LOST_EVENT: RenderEvent = { type: MapViewEventNames.ContextLost } 
 const CONTEXT_RESTORED_EVENT: RenderEvent = { type: MapViewEventNames.ContextRestored } as any;
 const COPYRIGHT_CHANGED_EVENT: RenderEvent = { type: MapViewEventNames.CopyrightChanged } as any;
 
-const tmpVector = new THREE.Vector2();
+const vector2 = new THREE.Vector2();
+const vector3 = new THREE.Vector3();
 
 /**
  * Specifies how the FOV (Field of View) should be calculated.
@@ -1345,21 +1346,33 @@ export class MapView extends THREE.EventDispatcher {
     /**
      * Changes the projection at run time.
      *
-     * TODO: There seems to be some issue with the sphere projection, when changing from this
-     * projection to a planar projection, the map is rotated. This needs to be fixed.
+     * @param projection The [[Projection]] instance to use.
      */
     set projection(projection: Projection) {
         // The geo center must be reset when changing the projection, because the
         // camera's position is based on the projected geo center.
-        const geoCenter = this.geoCenter;
+        const target = MapViewUtils.rayCastWorldCoordinates(this, 0, 0);
+        if (target === null) {
+            return;
+        }
+        const targetCoordinates = this.projection.unprojectPoint(target);
+        const targetDistance = this.camera.position.distanceTo(target);
+        const yawPitchRoll = MapViewUtils.extractYawPitchRoll(this.camera, this.projection.type);
+        const pitchDeg = THREE.Math.radToDeg(yawPitchRoll.pitch);
+        const yawDeg = THREE.Math.radToDeg(yawPitchRoll.yaw);
+        this.lookAt(targetCoordinates, targetDistance, pitchDeg, yawDeg);
+
         this.m_visibleTileSetOptions.projection = projection;
-        this.clearTileCache();
-        // We reset the theme, this has the affect of ensuring all caches are cleared.
-        this.theme = this.theme;
-        this.geoCenter = geoCenter;
-        // Necessary for the sphereProjection, however this also resets the camera position, so it
-        // should be fixed.
-        //this.setupCamera();
+        this.m_visibleTiles = new VisibleTileSet(
+            new FrustumIntersection(
+                this.m_camera,
+                this.m_visibleTileSetOptions.projection,
+                this.m_visibleTileSetOptions.extendedFrustumCulling,
+                this.m_tileWrappingEnabled
+            ),
+            this.m_tileGeometryManager,
+            this.m_visibleTileSetOptions
+        );
     }
 
     /**
@@ -1556,7 +1569,7 @@ export class MapView extends THREE.EventDispatcher {
      */
     setFovCalculation(fovCalculation: FovCalculation) {
         this.m_options.fovCalculation = fovCalculation;
-        this.calculateFocalLength(this.m_renderer.getSize(tmpVector).height);
+        this.calculateFocalLength(this.m_renderer.getSize(vector2).height);
         this.updateCameras();
     }
 
@@ -1716,7 +1729,8 @@ export class MapView extends THREE.EventDispatcher {
      * @param target The location to look at.
      * @param distance The distance of the camera to the target in meters.
      * @param tiltDeg The camera tilt angle in degrees (0 is vertical).
-     * @param azimuthDeg The camera azimuth angle in degrees and clockwise, starting north.
+     * @param azimuthDeg The camera azimuth angle in degrees and clockwise (as opposed to yaw),
+     * starting north.
      */
     lookAt(
         target: GeoCoordinates,
@@ -1724,6 +1738,12 @@ export class MapView extends THREE.EventDispatcher {
         tiltDeg: number = 0,
         azimuthDeg: number = 0
     ): void {
+        if (this.projection.type === ProjectionType.Spherical) {
+            // For globe, the rotation is computed in the tangent space of the geoCenter (in a
+            // flat sphere without altitude).
+            this.geoCenter = new GeoCoordinates(target.latitude, target.longitude);
+        }
+        MapViewUtils.setRotation(this, -azimuthDeg, tiltDeg);
         this.geoCenter = MapViewUtils.getCameraCoordinatesFromTargetCoordinates(
             target,
             distance,
@@ -1731,14 +1751,15 @@ export class MapView extends THREE.EventDispatcher {
             tiltDeg,
             this
         );
-        MapViewUtils.setRotation(this, -azimuthDeg, tiltDeg);
         const pitchRad = THREE.Math.degToRad(tiltDeg);
+        const altitude = Math.cos(pitchRad) * distance;
         if (this.projection.type === ProjectionType.Planar) {
-            this.camera.position.setZ(Math.cos(pitchRad) * distance);
+            this.camera.position.setZ(altitude);
         } else if (this.projection.type === ProjectionType.Spherical) {
-            this.camera.position.setLength(EarthConstants.EQUATORIAL_RADIUS + distance);
-            // TODO: HARP-6597 and HARP-6023: Support rotation and tilting for yaw and pitch in
-            // globe.
+            const a = EarthConstants.EQUATORIAL_RADIUS + altitude;
+            const b = Math.sin(pitchRad) * distance;
+            const cameraHeight = Math.sqrt(a * a + b * b);
+            this.camera.position.setLength(cameraHeight);
         }
     }
 
@@ -1748,7 +1769,8 @@ export class MapView extends THREE.EventDispatcher {
      *
      * @param geoPos Geolocation to move the camera to.
      * @param zoomLevel Desired zoom level.
-     * @param yawDeg Camera yaw in degrees.
+     * @param yawDeg Camera yaw in degrees, counter-clockwise (as opposed to azimuth), starting
+     * north.
      * @param pitchDeg Camera pitch in degrees.
      */
     setCameraGeolocationAndZoom(
@@ -1758,16 +1780,8 @@ export class MapView extends THREE.EventDispatcher {
         pitchDeg: number = 0
     ): void {
         this.geoCenter = geoPos;
-
-        // TODO: HARP-6597 and HARP-6023: Support rotation and tilting for yaw and pitch in globe.
-        if (this.projection.type === ProjectionType.Planar) {
-            MapViewUtils.setRotation(this, yawDeg, pitchDeg);
-        } else if (this.projection.type === ProjectionType.Spherical) {
-            this.m_camera.lookAt(this.scene.position);
-        }
-
+        MapViewUtils.setRotation(this, yawDeg, pitchDeg);
         MapViewUtils.zoomOnTargetPosition(this, 0, 0, zoomLevel);
-
         this.update();
     }
 
@@ -1919,9 +1933,8 @@ export class MapView extends THREE.EventDispatcher {
      * `undefined`.
      */
     getScreenPosition(geoPos: GeoCoordinates): THREE.Vector2 | undefined {
-        const worldPos = new THREE.Vector3();
-        this.projection.projectPoint(geoPos, worldPos);
-        const p = this.m_screenProjector.project(worldPos);
+        this.projection.projectPoint(geoPos, vector3);
+        const p = this.m_screenProjector.project(vector3);
         if (p !== undefined) {
             const { width, height } = this.getCanvasClientSize();
             p.x = p.x + width / 2;
@@ -1956,10 +1969,9 @@ export class MapView extends THREE.EventDispatcher {
      */
     getWorldPositionAt(x: number, y: number): THREE.Vector3 | null {
         this.m_raycaster.setFromCamera(this.getNormalizedScreenCoordinates(x, y), this.m_camera);
-        const worldPosition = new THREE.Vector3();
         return this.projection.type === ProjectionType.Spherical
-            ? this.m_raycaster.ray.intersectSphere(this.m_sphere, worldPosition)
-            : this.m_raycaster.ray.intersectPlane(this.m_plane, worldPosition);
+            ? this.m_raycaster.ray.intersectSphere(this.m_sphere, vector3)
+            : this.m_raycaster.ray.intersectPlane(this.m_plane, vector3);
     }
 
     /**
@@ -2223,7 +2235,7 @@ export class MapView extends THREE.EventDispatcher {
      * note, setupCamera must be called before this is called.
      */
     private updateCameras() {
-        const { width, height } = this.m_renderer.getSize(tmpVector);
+        const { width, height } = this.m_renderer.getSize(vector2);
         this.m_camera.aspect =
             this.m_forceCameraAspect !== undefined ? this.m_forceCameraAspect : width / height;
         this.setFovOnCamera(this.m_options.fovCalculation!, height);
@@ -2256,10 +2268,8 @@ export class MapView extends THREE.EventDispatcher {
 
         this.m_pixelToWorld = undefined;
 
-        const cameraPitch = MapViewUtils.extractYawPitchRoll(
-            this.m_camera.quaternion,
-            this.projection.type
-        ).pitch;
+        const cameraPitch = MapViewUtils.extractYawPitchRoll(this.m_camera, this.projection.type)
+            .pitch;
         const cameraPosZ = this.getCameraHeightAboveTerrain(TERRAIN_ZOOM_LEVEL);
 
         this.m_lookAtDistance = cameraPosZ / Math.cos(cameraPitch);
@@ -2506,7 +2516,7 @@ export class MapView extends THREE.EventDispatcher {
 
         if (this.m_movementDetector.checkCameraMoved(this, time)) {
             const { yaw, pitch, roll } = MapViewUtils.extractYawPitchRoll(
-                this.camera.quaternion,
+                this.camera,
                 this.projection.type
             );
             const { latitude, longitude, altitude } = this.geoCenter;

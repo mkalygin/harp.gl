@@ -11,7 +11,7 @@ import {
     MapViewMultiPolygonFeature
 } from "@here/harp-features-datasource";
 import { GeoCoordinates, sphereProjection } from "@here/harp-geoutils";
-import { MapControls } from "@here/harp-map-controls";
+import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightInfo, MapView } from "@here/harp-mapview";
 import { AltitudeBasedClipPlanesEvaluator } from "@here/harp-mapview/lib/ClipPlanesEvaluator";
 import { APIFormat, OmvDataSource } from "@here/harp-omv-datasource";
@@ -289,6 +289,9 @@ export namespace PolygonsFeaturesExample {
 
         const controls = new MapControls(mapView);
         controls.maxPitchAngle = 50;
+
+        const ui = new MapControlsUI(controls);
+        canvas.parentElement!.appendChild(ui.domElement);
 
         window.addEventListener("resize", () => mapView.resize(innerWidth, innerHeight));
 

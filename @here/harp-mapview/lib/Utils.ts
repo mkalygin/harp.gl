@@ -26,29 +26,30 @@ const groundNormalPlanarProj = new THREE.Vector3(0, 0, 1);
 const groundNormalInvPlanarProj = groundNormalPlanarProj.clone().negate();
 const groundPlane = new THREE.Plane(groundNormalPlanarProj.clone());
 const groundSphere = new THREE.Sphere(undefined, EarthConstants.EQUATORIAL_RADIUS);
-const cameraZPosition = new THREE.Vector3(0, 0, 0);
-const rotationMatrix = new THREE.Matrix4();
-const unprojectionMatrix = new THREE.Matrix4();
 const rayCaster = new THREE.Raycaster();
-const yawQuaternion = new THREE.Quaternion();
-const pitchQuaternion = new THREE.Quaternion();
-const tmpQuaternion = new THREE.Quaternion();
-const tmpMatrix = new THREE.Matrix4();
 const tmpVectors: THREE.Vector3[] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 
+/**
+ * Cached ThreeJS instances for realtime maths.
+ */
+const space = {
+    x: new THREE.Vector3(),
+    y: new THREE.Vector3(),
+    z: new THREE.Vector3()
+};
+const tangentSpace = {
+    x: new THREE.Vector3(),
+    y: new THREE.Vector3(),
+    z: new THREE.Vector3()
+};
+const quaternion1 = new THREE.Quaternion();
+const quaternion2 = new THREE.Quaternion();
+const vector = new THREE.Vector3();
+const euler = new THREE.Euler();
+const matrix1 = new THREE.Matrix4();
+const matrix2 = new THREE.Matrix4();
+
 export namespace MapViewUtils {
-    /**
-     * The yaw axis around we rotate when we change the yaw.
-     * This axis is fix and is the -Z axis `(0,0,1)`.
-     */
-    const yawAxis = new THREE.Vector3(0, 0, 1);
-
-    /**
-     * The pitch axis which we use to rotate around when we change the pitch.
-     * The axis is fix and is the +X axis `(1,0,0)`.
-     */
-    const pitchAxis = new THREE.Vector3(1, 0, 0);
-
     /**
      * Missing Typedoc
      */
@@ -125,7 +126,7 @@ export namespace MapViewUtils {
             targetPosition.sub(newTargetPosition);
             panCameraAboveFlatMap(mapView, targetPosition.x, targetPosition.y);
         } else if (mapView.projection.type === geoUtils.ProjectionType.Spherical) {
-            rotateCameraAroundGlobe(mapView, targetPosition, newTargetPosition);
+            panCameraAroundGlobe(mapView, targetPosition, newTargetPosition);
         }
     }
 
@@ -146,22 +147,35 @@ export namespace MapViewUtils {
         pitchDeg: number,
         mapView: MapView
     ): geoUtils.GeoCoordinates {
-        // Get the world distance between the target and the camera.
         const pitchRad = THREE.Math.degToRad(pitchDeg);
-        const cameraHeight = distance * Math.cos(pitchRad);
-        const projectedDistanceOnTheGround = cameraHeight * Math.tan(pitchRad);
-
-        // Get the camera coordinates.
         const yawRad = THREE.Math.degToRad(yawDeg);
-        const worldTargetCoordinates = mapView.projection.projectPoint(targetCoordinates);
-        const cameraWorldCoordinates = {
-            x: worldTargetCoordinates.x + Math.sin(yawRad) * projectedDistanceOnTheGround,
-            y: worldTargetCoordinates.y - Math.cos(yawRad) * projectedDistanceOnTheGround,
-            z: 0
-        };
+        mapView.projection.projectPoint(targetCoordinates, vector);
+        const groundDistance = distance * Math.sin(pitchRad);
+        if (mapView.projection.type === geoUtils.ProjectionType.Planar) {
+            vector.set(
+                vector.x + Math.sin(yawRad) * groundDistance,
+                vector.y - Math.cos(yawRad) * groundDistance,
+                0
+            );
+        } else if (mapView.projection.type === geoUtils.ProjectionType.Spherical) {
+            // In globe yaw and pitch are understood to be in tangent space. The approach below is
+            // to find the Z and Y tangent space axes, then rotate Y around Z by the given yaw, and
+            // set its new length (groundDistance). Finally the up vector's length is set to the
+            // camera height and added to the transformed Y above.
+            tangentSpace.z.copy(vector).normalize();
+            const obj = new THREE.Object3D();
+            obj.position.copy(vector);
+            obj.lookAt(space.x.set(0, 0, EarthConstants.EQUATORIAL_RADIUS));
+            obj.getWorldDirection(tangentSpace.y).projectOnPlane(tangentSpace.z);
+            quaternion1.setFromAxisAngle(tangentSpace.z, Math.PI + yawRad);
+            tangentSpace.y.applyQuaternion(quaternion1);
+            tangentSpace.y.setLength(groundDistance);
+            const height = distance * Math.cos(pitchRad);
+            vector.add(tangentSpace.y).add(tangentSpace.z.setLength(height));
+        }
 
         // Convert back to GeoCoordinates and return result.
-        return mapView.projection.unprojectPoint(cameraWorldCoordinates);
+        return mapView.projection.unprojectPoint(vector);
     }
 
     /**
@@ -184,20 +198,17 @@ export namespace MapViewUtils {
     ): THREE.Vector3 | null {
         const pointInNDCPosition = new THREE.Vector3(pointOnScreenXinNDC, pointOnScreenYinNDC, 0.5);
 
-        cameraZPosition.copy(mapView.camera.position);
+        vector.copy(mapView.camera.position);
 
-        rotationMatrix.extractRotation(mapView.camera.matrixWorld);
+        matrix1.extractRotation(mapView.camera.matrixWorld);
 
         // Prepare the unprojection matrix which projects from NDC space to camera space
         // and takes the current rotation of the camera into account.
-        unprojectionMatrix.multiplyMatrices(
-            rotationMatrix,
-            unprojectionMatrix.getInverse(mapView.camera.projectionMatrix)
-        );
+        matrix2.multiplyMatrices(matrix1, matrix2.getInverse(mapView.camera.projectionMatrix));
         // Unproject the point via the unprojection matrix.
-        const pointInCameraSpace = pointInNDCPosition.applyMatrix4(unprojectionMatrix);
+        const pointInCameraSpace = pointInNDCPosition.applyMatrix4(matrix2);
         // Use the point in camera space as the vector towards this point.
-        rayCaster.set(cameraZPosition, pointInCameraSpace.normalize());
+        rayCaster.set(vector, pointInCameraSpace.normalize());
         if (elevation !== undefined) {
             groundPlane.constant = -elevation;
         }
@@ -223,8 +234,7 @@ export namespace MapViewUtils {
         mapView: MapView,
         zoomLevel: number
     ): number {
-        const cameraPitch = extractYawPitchRoll(mapView.camera.quaternion, mapView.projection.type)
-            .pitch;
+        const cameraPitch = extractYawPitchRoll(mapView.camera, mapView.projection.type).pitch;
         const tileSize = EarthConstants.EQUATORIAL_CIRCUMFERENCE / Math.pow(2, zoomLevel);
         return ((mapView.focalLength * tileSize) / 256) * Math.cos(cameraPitch);
     }
@@ -248,87 +258,113 @@ export namespace MapViewUtils {
     }
 
     /**
-     * The function doing a pan when [[MapView]]'s active [[ProjectionType]] is spherical.
+     * The function doing a pan in the spherical space when [[MapView]]'s active [[ProjectionType]]
+     * is spherical. In other words, the function that rotates the camera around the globe.
      *
      * @param mapView MapView instance.
      * @param fromWorld Start vector representing the scene position of a geolocation.
      * @param toWorld End vector representing the scene position of a geolocation.
      */
-    export function rotateCameraAroundGlobe(
+    export function panCameraAroundGlobe(
         mapView: MapView,
         fromWorld: THREE.Vector3,
         toWorld: THREE.Vector3
     ) {
-        tmpQuaternion.setFromUnitVectors(fromWorld.normalize(), toWorld.normalize()).inverse();
-        tmpMatrix.makeRotationFromQuaternion(tmpQuaternion);
-        mapView.camera.applyMatrix(tmpMatrix);
+        quaternion1.setFromUnitVectors(fromWorld.normalize(), toWorld.normalize()).inverse();
+        matrix1.makeRotationFromQuaternion(quaternion1);
+        mapView.camera.applyMatrix(matrix1);
         mapView.camera.updateMatrixWorld();
     }
 
     /**
-     * Sets the rotation of the camera according to yaw and pitch in degrees.
+     * Sets the rotation of the camera according to yaw and pitch in degrees. The computations hinge
+     * on the current projection and `geoCenter`, because yaw and pitch are defined in tangent
+     * space. In particular, `MapView#geoCenter` needs to be set before calling `setRotation`.
      *
      * **Note:** `yaw == 0 && pitch == 0` will north up the map and you will look downwards onto the
      * map.
      *
      * @param mapView Instance of MapView.
-     * @param yaw Yaw in degrees.
+     * @param yaw Yaw in degrees, counter-clockwise (as opposed to azimuth), starting north.
      * @param pitch Pitch in degrees.
      */
     export function setRotation(mapView: MapView, yaw: number, pitch: number) {
-        yawQuaternion.setFromAxisAngle(yawAxis, geoUtils.MathUtils.degToRad(yaw));
-        pitchQuaternion.setFromAxisAngle(pitchAxis, geoUtils.MathUtils.degToRad(pitch));
+        const transform = {
+            xAxis: space.x,
+            yAxis: space.y,
+            zAxis: space.z,
+            position: vector
+        };
+        mapView.projection.localTangentSpace(mapView.geoCenter, transform);
 
-        yawQuaternion.multiply(pitchQuaternion);
-        mapView.camera.quaternion.copy(yawQuaternion);
-        mapView.camera.matrixWorldNeedsUpdate = true;
+        // `matrix2` thereafter is the transform matrix, `matrix1` the rotation matrix.
+        matrix2.makeBasis(transform.xAxis, transform.yAxis, transform.zAxis);
+        matrix2.setPosition(transform.position.x, transform.position.y, transform.position.z);
+        quaternion1.setFromAxisAngle(vector.set(0, 0, 1), THREE.Math.degToRad(yaw));
+        quaternion2.setFromAxisAngle(vector.set(1, 0, 0), THREE.Math.degToRad(pitch));
+        quaternion1.multiply(quaternion2);
+        matrix1.makeRotationFromQuaternion(quaternion1);
+        matrix2.multiply(matrix1);
+        mapView.camera.setRotationFromMatrix(matrix2);
+        mapView.camera.position.setFromMatrixPosition(matrix2);
     }
 
     /**
      * Extracts yaw, pitch, and roll rotation in radians.
-     * - Yaw : Rotation around the Z axis `(0,0,1)`.
-     * - Pitch :Rotation around the X axis `(1,0,0)`.
-     * - Roll : Rotation around the Y axis `(0,1,0)`.
+     * - Yaw : Rotation around the vertical axis, counter-clockwise (as opposed to azimuth),
+     * starting north.
+     * - Pitch :Rotation around the horizontal axis.
+     * - Roll : Rotation around the view axis.
      *
      * @see https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
      *
-     * @param q Quaternion that represents the given rotation
-     * from which to extract the yaw, roll, and pitch.
+     * @param object Object to extract rotation relatively to the projection type.
      * @param projectionType The active type of map projection used to deduce the yaw, pitch and
-     * roll values.
+     * roll values, relative to this coordinate system.
      */
     export function extractYawPitchRoll(
-        q: THREE.Quaternion,
+        object: THREE.Object3D,
         projectionType: geoUtils.ProjectionType
     ): YawPitchRoll {
         switch (projectionType) {
-            case geoUtils.ProjectionType.Planar:
-                const ysqr = q.y * q.y;
+            case geoUtils.ProjectionType.Spherical:
+                object.matrixWorld.extractBasis(space.x, space.y, space.z);
 
-                // pitch (x-axis rotation)
-                const t0 = +2.0 * (q.w * q.x + q.y * q.z);
-                const t1 = +1.0 - 2.0 * (q.x * q.x + ysqr);
-                const pitch = Math.atan2(t0, t1);
+                // 1. The pitch is the angle between the camera's view vector (Z axis) and the
+                // vertical axis (=the normal on the surface, =the normalized camera position
+                // vector).
+                vector.copy(object.position).normalize();
+                const pitch = space.z.angleTo(vector);
 
-                // roll (y-axis rotation)
-                let t2 = +2.0 * (q.w * q.y - q.z * q.x);
-                t2 = t2 > 1.0 ? 1.0 : t2;
-                t2 = t2 < -1.0 ? -1.0 : t2;
-                const roll = Math.asin(t2);
+                // 2. The roll is the angle between the vertical axis and the X axis of the camera,
+                // minus 90 degrees. (PROBLEM: needs to support negative values. Using euler.y
+                // below gives erratic values... investigate. Do we actually support roll? Many
+                // functions should have it but don't. What does it mean when view is vertical?).
+                const roll = space.x.angleTo(vector) - Math.PI / 2;
 
-                // yaw (z-axis rotation)
-                const t3 = +2.0 * (q.w * q.z + q.x * q.y);
-                const t4 = +1.0 - 2.0 * (ysqr + q.z * q.z);
-                const yaw = Math.atan2(t3, t4);
+                // 3. The yaw is the angle between the tangent space's Y axis (tangent vector
+                // pointing north) and the camera's view vector projected on the tangent plane.
+                const geoPoint = geoUtils.sphereProjection.unprojectPoint(object.position);
+                geoUtils.sphereProjection.localTangentSpace(geoPoint, {
+                    xAxis: tangentSpace.x,
+                    yAxis: tangentSpace.y,
+                    zAxis: tangentSpace.z,
+                    position: vector
+                });
+                const transform = new THREE.Matrix4();
+                transform.makeBasis(tangentSpace.x, tangentSpace.y, tangentSpace.z);
+                quaternion1.setFromRotationMatrix(transform);
+                quaternion2.copy(object.quaternion).multiply(quaternion1.inverse());
+                euler.setFromQuaternion(quaternion2, "ZXY");
+                const yaw = -euler.z;
 
                 return { yaw, pitch, roll };
-            case geoUtils.ProjectionType.Spherical:
-                // TODO: HARP-6597 and HARP-6023: Support rotation and tilting for yaw and pitch in
-                // globe (and roll?).
+            case geoUtils.ProjectionType.Planar:
+                euler.setFromQuaternion(object.quaternion, "ZXY");
                 return {
-                    yaw: 0,
-                    pitch: 0,
-                    roll: 0
+                    yaw: -euler.z,
+                    pitch: euler.x,
+                    roll: euler.y
                 };
         }
     }
