@@ -1143,6 +1143,11 @@ export interface TextTechniqueParams extends BaseTechniqueParams {
      */
     mayOverlap?: boolean;
     /**
+     * If `true`, icon is allowed to overlap other labels or icons of lower priority.
+     * @default `false`
+     */
+    smoothing?: boolean;
+    /**
      * If `true`, element will reserve screen space, other markers of lower priority will not be
      * able to overlap.
      * @default `true`

@@ -483,6 +483,7 @@ export class TileGeometryCreator {
                     technique.distanceScale !== undefined
                         ? technique.distanceScale
                         : DEFAULT_TEXT_DISTANCE_SCALE;
+                textElement.smoothing = technique.smoothing === true;
                 textElement.mayOverlap = technique.mayOverlap === true;
                 textElement.reserveSpace = technique.reserveSpace !== false;
                 textElement.kind = technique.kind;

@@ -351,6 +351,11 @@ export class TextElement {
     userData?: any;
 
     /**
+     * Optional user data. Will be retrieved during picking.
+     */
+    smoothing?: boolean;
+
+    /**
      * If specified, determines the render order between `TextElement`s. The number different
      * renderOrders should be as small as possible, because every specific `renderOrder` may result
      * in one or more draw calls.
