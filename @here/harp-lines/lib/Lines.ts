@@ -48,9 +48,10 @@ const LINE_VERTEX_ATTRIBUTES: VertexDescriptor = {
         { name: "extrusionCoord", itemSize: 2, offset: 0 },
         { name: "position", itemSize: 3, offset: 2 },
         { name: "tangent", itemSize: 3, offset: 5 },
-        { name: "bitangent", itemSize: 4, offset: 8 }
+        { name: "bitangent", itemSize: 4, offset: 8 },
+        { name: "lineLength", itemSize: 1, offset: 12 }
     ],
-    stride: 12
+    stride: 13
 };
 
 /** Base line vertex attributes plus normals and uv coordinates. */
@@ -151,6 +152,7 @@ export function createLineGeometry(
         sum = sum + len;
         segments[i + 1] = sum;
     }
+    const lineLength = segments[segments.length - 1];
 
     // Check if we're working with a closed line.
     let isClosed = true;
@@ -194,6 +196,7 @@ export function createLineGeometry(
                 tmpBitangent
             );
             geometry.vertices.push(...tmpBitangent.toArray(), angle);
+            geometry.vertices.push(lineLength);
 
             if (hasTexCoords) {
                 // uvs

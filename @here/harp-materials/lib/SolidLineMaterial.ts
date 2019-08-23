@@ -6,6 +6,7 @@
 
 import * as THREE from "three";
 
+import { LineCaps } from "@here/harp-datasource-protocol";
 import {
     DisplacementFeature,
     DisplacementFeatureParameters,
@@ -13,6 +14,14 @@ import {
     FadingFeatureParameters
 } from "./MapMeshMaterials";
 import linesShaderChunk from "./ShaderChunks/LinesChunks";
+
+export const LineCapsDefinitions: { [s in LineCaps]: string } = {
+    Square: "CAPS_SQUARE",
+    Round: "CAPS_ROUND",
+    None: "CAPS_NONE",
+    TriangleIn: "CAPS_TRIANGLE_IN",
+    TriangleOut: "CAPS_TRIANGLE_OUT"
+};
 
 const vertexSource: string = `
 #define SEGMENT_OFFSET 0.1
@@ -23,6 +32,7 @@ attribute vec4 bitangent;
 attribute vec3 tangent;
 attribute vec2 uv;
 attribute vec3 normal;
+attribute float lineLength;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
@@ -33,6 +43,7 @@ varying vec2 vExtrusionCoord;
 varying vec2 vSegment;
 varying float vLinewidth;
 varying vec3 vPosition;
+varying float vLength;
 
 #if USE_COLOR
 attribute vec3 color;
@@ -50,6 +61,7 @@ varying vec3 vColor;
 void main() {
     vLinewidth = lineWidth;
     vSegment = abs(extrusionCoord) - SEGMENT_OFFSET;
+    vLength = lineLength;
 
     vec3 pos = position;
     vec2 extrusionDir = sign(extrusionCoord);
@@ -93,6 +105,7 @@ varying vec2 vExtrusionCoord;
 varying vec2 vSegment;
 varying float vLinewidth;
 varying vec3 vPosition;
+varying float vLength;
 
 #if USE_COLOR
 varying vec3 vColor;
@@ -111,13 +124,48 @@ void main() {
 
     float alpha = opacity;
 
+    float lineEnds = max(vExtrusionCoord.x - vLength,- vExtrusionCoord.x);
+
     #if TILE_CLIP
     tileClip(vPosition.xy, tileSize);
     #endif
 
-    float dist = joinDist(vSegment, vExtrusionCoord) - vLinewidth;
+    float dist = 0.0;
+
+    #if defined(CAPS_NONE)
+        if (lineEnds > -0.1) {
+            dist = max((lineEnds + 0.1) / 0.1, abs(vExtrusionCoord.y));
+        } else {
+            dist = joinDist(vSegment, vExtrusionCoord);
+        }
+    #elif defined(CAPS_SQUARE)
+        if (lineEnds > 0.0) {
+            dist = max(abs(vExtrusionCoord.y), lineEnds);
+        } else {
+            dist = joinDist(vSegment, vExtrusionCoord);
+        }
+    #elif defined(CAPS_TRIANGLE_OUT)
+        if (lineEnds > 0.0) {
+            dist = (abs(vExtrusionCoord.y)) + lineEnds;
+        } else {
+            dist = joinDist(vSegment, vExtrusionCoord);
+        }
+    #elif defined(CAPS_TRIANGLE_IN)
+        if (lineEnds > 0.0) {
+            float y = abs(vExtrusionCoord.y);
+            dist = max(y, (lineEnds-y) + lineEnds);
+        } else {
+            dist = joinDist(vSegment, vExtrusionCoord);
+        }
+    #else
+        dist = joinDist(vSegment, vExtrusionCoord);
+    #endif
+
+
+    dist -= vLinewidth;
     float width = fwidth(dist);
-    alpha *= (1.0 - smoothstep(-width, width, dist));
+    alpha *= (1.0 - smoothstep(- width, width, dist));
+
 
     #if DASHED_LINE
     float halfSegment = (dashSize + gapSize) / dashSize * 0.5;
@@ -126,6 +174,7 @@ void main() {
     float dashWidth = fwidth(dashDist);
     alpha *= smoothstep(-dashWidth, dashWidth, dashDist);
     #endif
+
 
     #if USE_COLOR
     gl_FragColor = vec4( diffuse * vColor, alpha );

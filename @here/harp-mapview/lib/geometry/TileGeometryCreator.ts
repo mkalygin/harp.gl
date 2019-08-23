@@ -46,6 +46,7 @@ import {
     EdgeMaterial,
     EdgeMaterialParameters,
     FadingFeature,
+    LineCapsDefinitions,
     MapMeshBasicMaterial,
     MapMeshStandardMaterial,
     SolidLineMaterial
@@ -741,6 +742,10 @@ export class TileGeometryCreator {
 
                     if (bufferGeometry.getAttribute("color")) {
                         lineMaterial.defines.USE_COLOR = 1;
+                    }
+
+                    if (LineCapsDefinitions.hasOwnProperty(technique.caps)) {
+                        lineMaterial.defines[LineCapsDefinitions[technique.caps]] = 1;
                     }
                 }
                 // Add polygon offset to the extruded buildings and to the fill area to avoid depth
