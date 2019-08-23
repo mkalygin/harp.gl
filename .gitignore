@@ -1,0 +1,7 @@
+node_modules/
+dist/
+doc/
+test-npm-packages-app/
+.vscode/
+.DS_Store
+theme.schema.json
