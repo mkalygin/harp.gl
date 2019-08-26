@@ -84,10 +84,19 @@ interface UniformsType {
  *
  * @param distance Distance from the camera (range: [0, 1]).
  * @param camera Camera applying the perspective projection.
+ * @param maxVisibility maximum visibility range in meters, if not supplied camera far will be used.
  */
-function cameraToWorldDistance(distance: number, camera: THREE.Camera): number {
-    const perspCam = camera as THREE.PerspectiveCamera;
-    return distance * perspCam.far;
+function cameraToWorldDistance(
+    distance: number,
+    camera: THREE.Camera,
+    maxVisibility?: number
+): number {
+    if (maxVisibility === undefined) {
+        const perspCam = camera as THREE.PerspectiveCamera;
+        return distance * perspCam.far;
+    } else {
+        return distance * maxVisibility;
+    }
 }
 
 /**
@@ -385,6 +394,7 @@ export namespace FadingFeature {
         object: THREE.Object3D,
         fadeNear: number | undefined,
         fadeFar: number | undefined,
+        maxVisibility: number | undefined,
         forceMaterialToTransparent: boolean,
         updateUniforms: boolean,
         additionalCallback?: (
@@ -412,12 +422,12 @@ export namespace FadingFeature {
                 fadingMaterial.fadeNear =
                     fadeNear === undefined
                         ? FadingFeature.DEFAULT_FADE_NEAR
-                        : cameraToWorldDistance(fadeNear, camera);
+                        : cameraToWorldDistance(fadeNear, camera, maxVisibility);
 
                 fadingMaterial.fadeFar =
                     fadeFar === undefined
                         ? FadingFeature.DEFAULT_FADE_FAR
-                        : cameraToWorldDistance(fadeFar, camera);
+                        : cameraToWorldDistance(fadeFar, camera, maxVisibility);
 
                 if (updateUniforms) {
                     const properties = renderer.properties.get(material);

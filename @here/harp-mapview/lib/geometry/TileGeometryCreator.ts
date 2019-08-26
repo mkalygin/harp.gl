@@ -598,6 +598,7 @@ export class TileGeometryCreator {
         const dataSource = tile.dataSource;
         const displayZoomLevel = Math.floor(mapView.zoomLevel);
         const objects = tile.objects;
+        const maxVisibility: number = mapView.maxVisibility;
 
         for (const srcGeometry of decodedTile.geometries) {
             const groups = srcGeometry.groups;
@@ -792,6 +793,7 @@ export class TileGeometryCreator {
                         object,
                         fadingParams.fadeNear,
                         fadingParams.fadeFar,
+                        maxVisibility,
                         false,
                         false,
                         (renderer, mat) => {
@@ -812,6 +814,7 @@ export class TileGeometryCreator {
                         object,
                         fadingParams.fadeNear,
                         fadingParams.fadeFar,
+                        maxVisibility,
                         true,
                         false,
                         (renderer, mat) => {
@@ -880,6 +883,7 @@ export class TileGeometryCreator {
                             object,
                             fadingParams.fadeNear,
                             fadingParams.fadeFar,
+                            maxVisibility,
                             true,
                             true,
                             technique.color !== undefined && isInterpolatedProperty(technique.color)
@@ -914,6 +918,7 @@ export class TileGeometryCreator {
                             object,
                             fadingParams.fadeNear,
                             fadingParams.fadeFar,
+                            maxVisibility,
                             true,
                             true,
                             hasDynamicColor
@@ -1044,6 +1049,7 @@ export class TileGeometryCreator {
                         edgeObj,
                         fadingParams.lineFadeNear,
                         fadingParams.lineFadeFar,
+                        maxVisibility,
                         false,
                         false,
                         extrudedPolygonTechnique.lineColor !== undefined &&
@@ -1122,6 +1128,7 @@ export class TileGeometryCreator {
                         outlineObj,
                         fadingParams.lineFadeNear,
                         fadingParams.lineFadeFar,
+                        maxVisibility,
                         true,
                         false,
                         fillTechnique.lineColor !== undefined &&
@@ -1165,6 +1172,7 @@ export class TileGeometryCreator {
                         outlineObj,
                         fadingParams.fadeNear,
                         fadingParams.fadeFar,
+                        maxVisibility,
                         true,
                         false,
                         (renderer, mat) => {

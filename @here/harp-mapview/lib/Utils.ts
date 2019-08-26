@@ -367,17 +367,14 @@ export namespace MapViewUtils {
         position: THREE.Vector3,
         projection: geoUtils.Projection
     ): THREE.Vector3 {
-        // Position on the ground for surface normal calculation does not matter for
-        // any planar projections, so we may simplify calculus by returning const vector:
-        if (projection.type === geoUtils.ProjectionType.Planar) {
-            return groundNormalInvPlanarProj;
-        } else {
-            // Note using different vector then caller, otherwise vector data could be
-            // silently modified.
-            const normal: THREE.Vector3 = tmpVectors[1];
-            projection.surfaceNormal(position, normal);
-            return normal.negate();
-        }
+        // We can simply return [0,0,1] for planar projections because WebMercatorProjection
+        // has ground normal inverted - as opposite to other planar projections, so we need
+        // to use projection interface to acquire normal first.
+        // Note using different (tmp) vector then caller, otherwise vector data could be
+        // silently modified.
+        const normal: THREE.Vector3 = tmpVectors[1];
+        projection.surfaceNormal(position, normal);
+        return normal.negate();
     }
 
     /**
