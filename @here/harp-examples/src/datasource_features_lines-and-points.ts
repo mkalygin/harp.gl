@@ -11,6 +11,7 @@ import {
     MapViewLineFeature,
     MapViewMultiPointFeature
 } from "@here/harp-features-datasource";
+import { GeoJsonDataProvider } from "@here/harp-geojson-datasource";
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightInfo, MapView } from "@here/harp-mapview";
@@ -55,13 +56,46 @@ export namespace LinesPointsFeaturesExample {
     // end:harp_demo_features_linespoints_0.ts
 
     // snippet:harp_demo_features_linespoints_3.ts
-    const featuresDataSource = new FeaturesDataSource();
-    map.addDataSource(featuresDataSource).then(() => {
-        const features = getFeatures(faults);
-        const styleSet = getStyleSet();
-        featuresDataSource.add(...features).setStyleSet(styleSet);
-    });
+    // const featuresDataSource = new FeaturesDataSource();
+
+    // map.addDataSource(featuresDataSource).then(() => {
+    //     const features = getFeatures(faults);
+    //     const styleSet = getStyleSet();
+    //     featuresDataSource.add(...features).setStyleSet(styleSet);
+    // });
     // end:harp_demo_features_linespoints_3.ts
+
+    const geoJsonDataProvider = new GeoJsonDataProvider(
+        "pointsAndLines",
+        new URL("resources/pointsAndLines.json", window.location.href)
+    );
+
+    const geoJsonDataSource = new OmvDataSource({
+        dataProvider: geoJsonDataProvider,
+        name: "pointsAndLines"
+    });
+
+    map.addDataSource(geoJsonDataSource).then(() => {
+        geoJsonDataSource.setStyleSet([
+            {
+                when: "$geometryType == 'point'",
+                technique: "circles",
+                attr: {
+                    color: "#a00",
+                    size: 16
+                }
+            },
+            {
+                when: "$geometryType == 'line'",
+                technique: "solid-line",
+                attr: {
+                    color: "#0a0",
+                    lineWidth: 10,
+                    metricUnit: "Pixel"
+                }
+            }
+        ]);
+    });
 
     function getFeatures(features: {
         [key: string]: { [key: string]: number[][] };
@@ -166,7 +200,8 @@ export namespace LinesPointsFeaturesExample {
             canvas,
             theme: "resources/berlin_tilezen_day_reduced.json"
         });
-        mapView.setCameraGeolocationAndZoom(new GeoCoordinates(10, -150), 2.6);
+
+        mapView.setCameraGeolocationAndZoom(new GeoCoordinates(40.772443, -73.9698722), 15);
 
         const controls = new MapControls(mapView);
         const ui = new MapControlsUI(controls);
